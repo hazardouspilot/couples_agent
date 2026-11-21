@@ -3,7 +3,7 @@
 from langchain_core.messages import AIMessage, SystemMessage
 
 from app.nodes.converse import MAX_TOOL_ROUNDS, make_converse_node, route_after_converse
-from app.prompts import speaker_message
+from app.prompts import LOOKUPS_DONE_NOTE, speaker_message
 from app.state import new_session_state
 from tests.fakes import FakeToolModel, tool_call
 
@@ -55,6 +55,14 @@ def test_at_round_cap_tools_are_switched_off():
     state = _state(speaker_message("hi", "partner_a", NAMES), tool_rounds=MAX_TOOL_ROUNDS)
     make_converse_node(model)(state)
     assert model.calls[0]["kwargs"]["tool_choice"] == {"type": "none"}
+    # And the model is told why, or it replies with nothing (found live).
+    assert LOOKUPS_DONE_NOTE in model.calls[0]["messages"][0].content
+
+
+def test_lookups_note_absent_below_cap():
+    model = FakeToolModel(responses=[AIMessage(content="ok")])
+    make_converse_node(model)(_state(speaker_message("hi", "partner_a", NAMES)))
+    assert LOOKUPS_DONE_NOTE not in model.calls[0]["messages"][0].content
 
 
 def test_turn_streak_reaches_the_prompt():

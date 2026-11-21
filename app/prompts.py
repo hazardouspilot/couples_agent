@@ -92,6 +92,13 @@ if relevant; it is never grounds to assume something is wrong.
 # Invite the quieter partner once one has had this many turns in a row (SPEC).
 TURN_STREAK_LIMIT = 3
 
+# Sent with tool_choice "none" at the tool-round cap. Found live: with "none"
+# but no explanation, the model ended the turn with an EMPTY reply.
+LOOKUPS_DONE_NOTE = (
+    "MEMORY LOOKUPS: you've used all your memory lookups for this turn. Reply to "
+    "the couple now, in text, using what you've already found."
+)
+
 
 def speaker_message(text: str, speaker: str, partner_names: dict[str, str]) -> HumanMessage:
     """One partner's turn as a message. The name prefix in `content` is what
@@ -128,6 +135,7 @@ def build_system_prompt(
     turn_note: str | None = None,
     active_exercise: str | None = None,
     safety_note: str | None = None,
+    lookups_done: bool = False,
 ) -> str:
     """Base persona plus the per-turn facts, each computed in Python."""
     a, b = partner_names["partner_a"], partner_names["partner_b"]
@@ -159,5 +167,8 @@ def build_system_prompt(
 
     if safety_note:
         prompt += f"\n\n[SAFETY SYSTEM NOTE, not visible to the couple]: {safety_note}"
+
+    if lookups_done:
+        prompt += f"\n\n{LOOKUPS_DONE_NOTE}"
 
     return prompt

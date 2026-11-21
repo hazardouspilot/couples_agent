@@ -36,6 +36,8 @@ def make_converse_node(model):
 
     def converse(state: CoupleState) -> dict:
         names = state["partner_names"]
+        rounds = state.get("tool_rounds", 0)
+        capped = rounds >= MAX_TOOL_ROUNDS
         system = build_system_prompt(
             partner_names=names,
             speaker=state.get("speaker"),
@@ -44,12 +46,11 @@ def make_converse_node(model):
             profile_overview=state.get("profile_overview"),
             turn_note=turn_balance_note(state["messages"], names),
             active_exercise=state.get("active_exercise"),
+            lookups_done=capped,  # tells the model WHY tools are off (see prompts.py)
         )
         messages = [SystemMessage(content=system), *state["messages"]]
 
-        rounds = state.get("tool_rounds", 0)
-        runnable = with_tools if rounds < MAX_TOOL_ROUNDS else tools_off
-        reply: AIMessage = runnable.invoke(messages)
+        reply: AIMessage = (tools_off if capped else with_tools).invoke(messages)
 
         # Partial update: append the reply (add_messages reducer) and count
         # the round if the model asked for tools.
