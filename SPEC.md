@@ -275,7 +275,7 @@ Instrument the agent once and send the data to two places. Traces go to LangSmit
 
 The goal is to finish Sunday night with a graph that runs end to end, two evals with numbers, and enough understanding to draw the graph on a whiteboard from memory.
 
-- [ ] **Fri evening (1 h):** Rotate the API key. Create `~/Repos/couples_agent`. Export this doc to Markdown as `SPEC.md`. Add `CLAUDE.md` (below). Run git init and push to a private GitHub repo.
+- [done] **Fri evening (1 h):** Rotate the API key. Create `~/Repos/couples_agent`. Export this doc to Markdown as `SPEC.md`. Add `CLAUDE.md` (below). Run git init and push to a private GitHub repo.
 - [ ] **Sat morning:** Claude Code ports `memory/` from v0.4 (store, db, timeutil, auth, crisis resources) with `couple_id`/`doc_scope`, and its tests pass.
 - [ ] **Sat midday:** `state.py`, `graph.py` with `load_context → safety_gate → router → converse ⇄ tools → output_check`, plus `SqliteSaver`. A CLI chat works. Turn on LangSmith tracing and read one full trace node by node.
 - [ ] **Sat afternoon:** `crisis` node with the IPV protocol; the conflict-debrief exercise subgraph with `interrupt()`; the curator subgraph; thread deletion after curation; seed the reference notes once Riley has reviewed them.
