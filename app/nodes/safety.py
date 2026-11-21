@@ -20,10 +20,12 @@ misses indirect phrasing, so it's a FLOOR, not a full solution. The system
 prompt asks the model to recognise risk too (the second layer), and an
 optional LLM classifier is a Sunday experiment.
 
-Bias: towards OVER-triggering. A false positive costs one extra resources
-message; a false negative could cost far more. (In joint couples sessions
-a false positive also stops the session, which raises its cost; see the
-known false positive documented in tests/test_safety.py.)
+Bias: towards OVER-triggering. In v0.4 a false positive cost one extra
+resources message and the chat carried on; a false negative could cost far
+more. In joint couples sessions the cost depends on the category: any flag
+shows crisis resources to BOTH partners mid-conversation, and an `abuse`
+flag also stops mediation for the rest of the session (IPV protocol). So
+precision on `abuse` matters more here than it did in v0.4.
 """
 
 import re

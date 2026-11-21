@@ -97,7 +97,8 @@ def test_state_form_when_clear():
 @pytest.mark.xfail(
     strict=True,
     reason="v0.4 harm_to_others pattern matches 'hurt her'. Very common in couples "
-    "talk; in a joint session a false positive ends the session. For the Sunday eval.",
+    "talk; a false positive shows crisis resources to both partners mid-session. "
+    "For the Sunday eval.",
 )
 def test_hurt_feelings_is_not_harm_to_others():
     assert not check_message("I didn't mean to hurt her feelings").triggered
