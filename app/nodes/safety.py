@@ -1,8 +1,8 @@
 """
 Deterministic safety layer: the regex check that runs on every message
 before the model sees it (safety_gate) and on every model reply
-(output_check). The graph node functions are added in a later step; this
-part is pure Python so it can be tested and evaluated on its own.
+(output_check). The regex part (check_message) is pure Python so it can be
+tested and evaluated on its own; the graph nodes are at the bottom.
 
 Ported unchanged from counselling_agent v0.4 (agent/safety.py) as the
 BASELINE for Sunday's safety eval. The couples-specific patterns (coercive
@@ -30,6 +30,11 @@ precision on `abuse` matters more here than it did in v0.4.
 
 import re
 from dataclasses import dataclass, field
+
+from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage
+
+from app.memory import db
+from app.resources.crisis_resources import format_crisis_message, format_joint_session_message
 
 # Highest priority first: decides which resource message is shown when
 # several categories match. Self-harm is the most time-critical.
@@ -111,3 +116,98 @@ def check_message(text: str | None) -> SafetyResult:
                 categories.append(category)
 
     return SafetyResult(triggered=bool(categories), categories=categories, matched=matched)
+
+
+# ======================================================================
+# Graph nodes
+# ======================================================================
+
+def safety_gate(state) -> dict:
+    """Runs the regex on this turn's message, before anything else can
+    reach the model. Logs the category only (never the text or speaker)."""
+    last_human = next(
+        (m for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), None
+    )
+    result = check_message(last_human.content if last_human else None)
+    if result.triggered:
+        db.log_safety_event(state["couple_id"], state["session_id"], result.primary_category)
+    return {"safety": result.as_state()}
+
+
+def route_after_safety(state) -> str:
+    """Conditional edge: a flagged message goes to `crisis`, never on to
+    the router or the model."""
+    return "crisis" if state["safety"]["triggered"] else "router"
+
+
+# --- output_check: the backstop on the model's own replies ---
+# v0.4 described an output-side check but never called it. Two parts:
+#   1. Neutrality rules: side-taking or diagnostic labels. The reply is
+#      REPLACED with a neutral fallback, because both partners would read it.
+#   2. The crisis regex on the reply: if it fires, resources are ADDED by
+#      code (the reply is kept; we never remove a safety message).
+# Like the input regex, this is blunt and recall-biased: a false positive
+# costs one gentler, generic reply.
+
+_LABEL_PATTERNS = [
+    (r"\bnarcissis\w*", "diagnosis"),
+    (r"\bgaslight\w*", "diagnosis"),
+    (r"\bco-?dependen\w*", "diagnosis"),
+    (r"\b(socio|psycho)path\w*", "diagnosis"),
+    (r"\btoxic\b", "diagnosis"),
+    (r"\bpersonality disorder\b", "diagnosis"),
+    (r"\b(has|have|with) (bpd|npd|adhd|bipolar|depression)\b", "diagnosis"),
+    (r"\b(you're|you are|he's|he is|she's|she is) (being )?(abusive|manipulative)\b", "diagnosis"),
+    (r"\b(it's|it is|that's|that is) (all )?(his|her|your) fault\b", "side_taking"),
+    (r"\b(you're|you are|he's|he is|she's|she is) to blame\b", "side_taking"),
+]
+_COMPILED_LABELS = [(re.compile(p, re.IGNORECASE), cat) for p, cat in _LABEL_PATTERNS]
+
+NEUTRAL_FALLBACK = (
+    "I want to be careful to stay on both your sides here, so let me step back. "
+    "Could you each tell me, in a sentence or two, what felt most important to "
+    "you in what just happened?"
+)
+EMPTY_REPLY_FALLBACK = (
+    "I'm not able to respond to that one, sorry. Would you like to come at it "
+    "from a different angle, or talk about something else?"
+)
+
+
+def neutrality_flags(text: str, partner_names: dict[str, str]) -> list[str]:
+    """Names of the neutrality rules a reply breaks ([] if none). Partner
+    names are added per call, e.g. 'Jordan is right' / 'Riley is wrong'."""
+    flags = [cat for pat, cat in _COMPILED_LABELS if pat.search(text or "")]
+    names = "|".join(re.escape(n) for n in partner_names.values())
+    if re.search(rf"\b({names}) (is|was) (right|wrong|at fault|to blame)\b", text or "",
+                 re.IGNORECASE):
+        flags.append("side_taking")
+    return sorted(set(flags))
+
+
+def output_check(state) -> dict:
+    reply = state["messages"][-1]
+    text = reply.text if isinstance(reply, AIMessage) else ""
+    update: dict = {}
+
+    flags = neutrality_flags(text, state["partner_names"])
+    if not text.strip():
+        flags.append("empty_reply")  # e.g. a refusal; the turn still needs an answer
+    if flags:
+        fallback = EMPTY_REPLY_FALLBACK if flags == ["empty_reply"] else NEUTRAL_FALLBACK
+        # RemoveMessage tells the add_messages reducer to delete that message;
+        # the fallback is then appended in its place.
+        update["messages"] = [RemoveMessage(id=reply.id), AIMessage(content=fallback)]
+        update["output_flags"] = flags
+        text = fallback
+
+    result = check_message(text)
+    if result.triggered:
+        category = result.primary_category
+        db.log_safety_event(state["couple_id"], state["session_id"], category)
+        resources = (format_joint_session_message()
+                     if category == "abuse" and state.get("joint_mode", True)
+                     else format_crisis_message(category))
+        update["display"] = [*state.get("display", []), resources]
+        update["output_flags"] = [*update.get("output_flags", []), f"safety:{category}"]
+    return update

@@ -58,10 +58,13 @@ class CoupleState(TypedDict):
     temporal_context: str | None         # "session #4, last one 12 days ago" (once)
     profile_overview: str | None         # the one memory doc injected up front (once)
 
-    # Set per turn by nodes.
+    # Set per turn by nodes (all reset by load_context at the start of a turn).
     safety: SafetyState | None           # safety_gate
     route: Route | None                  # router
-    tool_rounds: int                     # converse; reset to 0 each turn by load_context
+    tool_rounds: int                     # converse
+    display: list[str]                   # code-written text for the CLI to print
+    #   (crisis resources). Not part of `messages`: the model never writes it.
+    output_flags: list[str]              # output_check: rule names that fired
 
     # Exercise (Sat afternoon). String keys like "partner_a:facts", not
     # tuples: the checkpointer serialises state, and tuple keys don't survive.
@@ -85,6 +88,8 @@ def new_session_state(couple_id: int, session_id: int,
         "safety": None,
         "route": None,
         "tool_rounds": 0,
+        "display": [],
+        "output_flags": [],
         "active_exercise": None,
         "exercise_answers": {},
     }
