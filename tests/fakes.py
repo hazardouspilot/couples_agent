@@ -12,6 +12,7 @@ from typing import Any
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
+from langchain_core.runnables import RunnableLambda
 from pydantic import Field
 
 
@@ -33,6 +34,20 @@ class FakeToolModel(BaseChatModel):
     def bind_tools(self, tools, tool_choice=None, **kwargs):
         # .bind() returns a wrapper that passes these kwargs into _generate.
         return self.bind(tools=[t.name for t in tools], tool_choice=tool_choice, **kwargs)
+
+    # Structured output: scripted schema instances (e.g. MemoryProposal), or
+    # an Exception to raise.
+    structured_responses: list[Any] = Field(default_factory=list)
+
+    def with_structured_output(self, schema, method="function_calling", **kwargs):
+        def respond(messages):
+            self.calls.append({"messages": list(messages),
+                               "kwargs": {"schema": schema.__name__, "method": method}})
+            reply = self.structured_responses.pop(0)
+            if isinstance(reply, Exception):
+                raise reply
+            return reply
+        return RunnableLambda(respond)
 
 
 def tool_call(name: str, args: dict, call_id: str = "call_1") -> AIMessage:

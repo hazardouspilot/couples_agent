@@ -9,16 +9,18 @@ from langchain_core.messages import AIMessage, ToolMessage
 from pydantic import ValidationError
 
 from app.curator import (
+    SAFETY_FLAG_NOTE,
     DocumentUpdate,
     MemoryProposal,
     UpdatableType,
     apply_proposal,
+    curate_session,
     format_session_material,
 )
 from app.memory import db
 from app.memory import memory_store as ms
 from app.prompts import speaker_message
-from tests.fakes import tool_call
+from tests.fakes import FakeToolModel, tool_call
 
 NAMES = {"partner_a": "Jordan", "partner_b": "Riley"}
 
@@ -115,6 +117,59 @@ def test_apply_supersedes_living_document(ids):
     history = ms.get_document_history(couple, "agreements")
     assert [h["content"] for h in history] == ["v1 agreements", "v2 agreements"]
     assert ms.get_latest_by_key(couple, "agreements")["content"] == "v2 agreements"
+
+
+def _proposal(**kw):
+    return MemoryProposal(**{"profile_overview": "Overview.", "session_note": "Note.", **kw})
+
+
+def test_curate_session_writes_memory_and_returns_notes(ids):
+    couple, session = ids
+    ms.upsert_document(couple, "agreements", "agreements", "Agreements", "Walk on Sundays.")
+    model = FakeToolModel(structured_responses=[_proposal(document_updates=[
+        DocumentUpdate(doc_type="agreements", title="Agreements",
+                       content="Walk on Sundays. Chores rota.")])])
+    messages = [speaker_message("let's try a chores rota", "partner_a", NAMES),
+                AIMessage(content="That sounds like a good experiment.")]
+
+    notes = curate_session(model, couple, session, messages,
+                           now_text="Saturday, 21 November 2026", temporal_context="First session.")
+
+    assert "Updated agreements." in notes
+    assert ms.get_latest_by_key(couple, "agreements")["content"] == "Walk on Sundays. Chores rota."
+    call = model.calls[0]
+    assert call["kwargs"] == {"schema": "MemoryProposal", "method": "json_schema"}
+    prompt = call["messages"][1].content
+    assert "Walk on Sundays." in prompt                 # existing docs fetched by code
+    assert "Jordan: let's try a chores rota" in prompt   # the session
+    assert "TODAY: Saturday, 21 November 2026. First session." in prompt
+
+
+def test_curate_session_tells_model_about_a_safety_flag_but_not_the_content(ids):
+    couple, session = ids
+    model = FakeToolModel(structured_responses=[_proposal()])
+    messages = [speaker_message("I want to kill myself", "partner_b", NAMES),
+                AIMessage(content="Thank you for telling us."),
+                speaker_message("we also planned our trip", "partner_a", NAMES)]
+    curate_session(model, couple, session, messages, safety_flagged=True)
+    prompt = model.calls[0]["messages"][1].content
+    assert SAFETY_FLAG_NOTE in prompt
+    assert "kill myself" not in prompt and "planned our trip" in prompt
+
+
+def test_empty_session_makes_no_model_call(ids):
+    couple, session = ids
+    model = FakeToolModel()
+    assert curate_session(model, couple, session, []) == []
+    assert model.calls == []
+
+
+def test_curator_failure_never_raises(ids):
+    couple, session = ids
+    model = FakeToolModel(structured_responses=[ConnectionError("API down")])
+    messages = [speaker_message("hello", "partner_a", NAMES)]
+    assert curate_session(model, couple, session, messages) == []
+    assert ms.list_documents(couple, {"couple"}) == []
 
 
 def test_apply_skips_blank_fields(ids):
