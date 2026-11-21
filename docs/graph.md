@@ -16,6 +16,8 @@ graph TD;
 	crisis(crisis)
 	router(router)
 	converse(converse)
+	exercise(exercise)
+	reflect(reflect)
 	tools(tools<hr/><small><em>__tools = search_memory, get_memory_document, list_memory_documents</em></small>)
 	output_check(output_check)
 	__end__([<p>__end__</p>]):::last
@@ -24,8 +26,12 @@ graph TD;
 	converse -.-> tools;
 	crisis -. &nbsp;end&nbsp; .-> __end__;
 	crisis -.-> output_check;
+	exercise -.-> output_check;
+	exercise -.-> reflect;
 	load_context --> safety_gate;
+	reflect --> output_check;
 	router -.-> converse;
+	router -.-> exercise;
 	safety_gate -.-> crisis;
 	safety_gate -.-> router;
 	tools --> converse;

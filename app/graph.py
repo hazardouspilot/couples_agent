@@ -4,7 +4,9 @@ The per-turn graph: wiring of the nodes, plus the checkpointer.
     START -> load_context -> safety_gate --(flagged)--> crisis --(IPV)--> END
                                          |                     \--------> output_check
                                          \--(clear)---> router -> converse <-> tools
-                                                                     \-> output_check -> END
+                                                          |          \-> output_check -> END
+                                                          \-> exercise --(last answer)--> reflect
+                                                                       \-> output_check
 
 The graph runs ONCE PER TURN. END ends the turn, not the session; the
 checkpointer carries the state to the next turn.
@@ -30,9 +32,11 @@ appends one ToolMessage per call.
 LANGGRAPH CONCEPT: CHECKPOINTER
 compile(checkpointer=...) makes LangGraph save the full state after every
 node, keyed by the `thread_id` in the call's config. A later .invoke() with
-the same thread_id resumes from that saved state. Needed for multi-turn
-chat now, and for interrupt() (pausing mid-graph for input) this
-afternoon. It stores message text, so the session's thread is deleted
+the same thread_id resumes from that saved state. That's what makes
+multi-turn chat work, and what lets the exercise remember which question
+it's on between turns. graph.update_state(config, {...}) edits a thread's
+saved state from outside the graph (the CLI's /stop uses it). It stores
+message text, so the session's thread is deleted
 after the session ends (data minimisation: no raw transcripts kept).
 """
 
@@ -46,6 +50,7 @@ from langgraph.prebuilt import ToolNode
 from app.nodes.context import load_context
 from app.nodes.converse import make_converse_node, route_after_converse
 from app.nodes.crisis import make_crisis_node, route_after_crisis
+from app.nodes.exercise import exercise, make_reflect_node, route_after_exercise
 from app.nodes.router import route_after_router, router
 from app.nodes.safety import output_check, route_after_safety, safety_gate
 from app.state import CoupleState
@@ -61,6 +66,8 @@ def build_graph(model, checkpointer=None):
     g.add_node("crisis", make_crisis_node(model))
     g.add_node("router", router)
     g.add_node("converse", make_converse_node(model))
+    g.add_node("exercise", exercise)
+    g.add_node("reflect", make_reflect_node(model))
     g.add_node("tools", ToolNode(MEMORY_TOOLS))
     g.add_node("output_check", output_check)
 
@@ -70,8 +77,13 @@ def build_graph(model, checkpointer=None):
                             {"crisis": "crisis", "router": "router"})
     g.add_conditional_edges("crisis", route_after_crisis,
                             {"end": END, "output_check": "output_check"})
-    # Only "converse" for now; Sat afternoon adds "exercise".
-    g.add_conditional_edges("router", route_after_router, {"converse": "converse"})
+    g.add_conditional_edges("router", route_after_router,
+                            {"converse": "converse", "exercise": "exercise"})
+    # Exercise: a code-written question goes straight to output_check; after
+    # the last answer, the model writes a reflection first.
+    g.add_conditional_edges("exercise", route_after_exercise,
+                            {"reflect": "reflect", "output_check": "output_check"})
+    g.add_edge("reflect", "output_check")
     g.add_conditional_edges("converse", route_after_converse,
                             {"tools": "tools", "output_check": "output_check"})
     g.add_edge("tools", "converse")  # the loop back: tool results -> model

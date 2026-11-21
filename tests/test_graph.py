@@ -178,4 +178,4 @@ def test_graph_has_the_designed_shape(session):
     graph = build_graph(FakeToolModel(), session["cp"])
     nodes = set(graph.get_graph().nodes) - {"__start__", "__end__"}
     assert nodes == {"load_context", "safety_gate", "crisis", "router",
-                     "converse", "tools", "output_check"}
+                     "converse", "tools", "exercise", "reflect", "output_check"}

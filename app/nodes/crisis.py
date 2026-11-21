@@ -56,10 +56,12 @@ def make_crisis_node(model):
 
     def crisis(state: CoupleState) -> dict:
         category = (state.get("safety") or {}).get("primary_category") or "general"
+        # SAFETY HANDOFF: any running exercise stops here (answers discarded).
+        stop_exercise = {"active_exercise": None, "exercise_step": -1, "exercise_answers": {}}
 
         if category == "abuse" and state.get("joint_mode", True):
             return {"display": [format_joint_session_message()],
-                    "safety_flags": [category], "session_ended": True}
+                    "safety_flags": [category], "session_ended": True, **stop_exercise}
 
         note = CRISIS_SAFETY_NOTE.format(concern=_CONCERN.get(category, "a possible risk"))
         system = build_system_prompt(partner_names=state["partner_names"],
@@ -72,7 +74,7 @@ def make_crisis_node(model):
             reply = AIMessage(content=CRISIS_REPLY_FALLBACK)
 
         return {"display": [format_crisis_message(category)],
-                "messages": [reply], "safety_flags": [category]}
+                "messages": [reply], "safety_flags": [category], **stop_exercise}
 
     return crisis
 

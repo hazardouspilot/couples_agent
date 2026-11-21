@@ -136,6 +136,7 @@ def build_system_prompt(
     active_exercise: str | None = None,
     safety_note: str | None = None,
     lookups_done: bool = False,
+    task_note: str | None = None,
 ) -> str:
     """Base persona plus the per-turn facts, each computed in Python."""
     a, b = partner_names["partner_a"], partner_names["partner_b"]
@@ -170,5 +171,8 @@ def build_system_prompt(
 
     if lookups_done:
         prompt += f"\n\n{LOOKUPS_DONE_NOTE}"
+
+    if task_note:  # a specific job for this reply, e.g. the exercise reflection
+        prompt += f"\n\nYOUR TASK NOW: {task_note}"
 
     return prompt

@@ -27,6 +27,7 @@ from app.graph import (
 from app.memory import auth, db, memory_store, timeutil
 from app.model import OfflineChatModel, get_model
 from app.nodes.context import compute_temporal_context
+from app.nodes.exercise import EXERCISE_KEY, expected_speaker
 from app.prompts import speaker_message
 from app.resources.crisis_resources import format_crisis_message
 from app.state import new_session_state
@@ -50,6 +51,8 @@ Who's speaking:
   /who                     show who is speaking now
 
 Commands:
+  /debrief                 start a guided conflict debrief (13 short questions)
+  /stop                    leave the debrief
   /memory                  list what's stored about you as a couple
   /memory <n>              show one memory document in full
   /crisis                  show support services immediately
@@ -273,13 +276,21 @@ def run_session(couple_id: int, username: str, model, checkpointer) -> str:
                 if confirm_forget(couple_id, username):
                     return "quit"  # session row is gone with the account
                 continue
+            if cmd == "/stop":
+                stop_exercise(graph, config, first_turn)
+                continue
 
+            extra = {}
+            if cmd == "/debrief":  # a normal turn that also starts the exercise
+                line = "Let's do a conflict debrief."
+                extra = {"active_exercise": EXERCISE_KEY, "exercise_step": -1}
             speaker, text = parse_turn(line, speaker, names)
             if not text:
                 print(f"Speaking now: {names[speaker]}")
                 continue
 
-            turn = {"messages": [speaker_message(text, speaker, names)], "speaker": speaker}
+            turn = {"messages": [speaker_message(text, speaker, names)], "speaker": speaker,
+                    **extra}
             if first_turn:
                 turn = {**new_session_state(couple_id, session_id, names), **turn}
             try:
@@ -293,6 +304,11 @@ def run_session(couple_id: int, username: str, model, checkpointer) -> str:
                 print("\n(This session has ended. Take care.)")
                 result = "logout"
                 break
+            # Exercise: hand the keyboard to whoever the next question is for.
+            next_up = expected_speaker(state)
+            if next_up and next_up != speaker:
+                speaker = next_up
+                print(f"\n[Over to {names[speaker]}.]")
     finally:
         # Curator first (it reads the session from the checkpoint), THEN
         # always close the session and delete its message history.
@@ -305,6 +321,18 @@ def run_session(couple_id: int, username: str, model, checkpointer) -> str:
             db.end_session(session_id)
         delete_session_thread(checkpointer, session_id)
     return result
+
+
+def stop_exercise(graph, config: dict, first_turn: bool):
+    """/stop: leave the exercise without running the graph.
+    LANGGRAPH CONCEPT: update_state edits the thread's saved state directly,
+    as if a node had returned this update (reducers still apply)."""
+    if first_turn or not graph.get_state(config).values.get("active_exercise"):
+        print("No exercise is running.")
+        return
+    graph.update_state(config, {"active_exercise": None, "exercise_step": -1,
+                                "exercise_answers": {}})
+    print("Stopped the debrief. Back to talking freely.")
 
 
 def run_curator(graph, config: dict, model, couple_id: int, session_id: int):

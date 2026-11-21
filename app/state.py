@@ -79,6 +79,7 @@ class CoupleState(TypedDict):
     # Exercise (Sat afternoon). String keys like "partner_a:facts", not
     # tuples: the checkpointer serialises state, and tuple keys don't survive.
     active_exercise: str | None
+    exercise_step: int                   # question awaiting an answer; -1 = just started
     exercise_answers: dict[str, str]
 
 
@@ -103,5 +104,6 @@ def new_session_state(couple_id: int, session_id: int,
         "safety_flags": [],
         "session_ended": False,
         "active_exercise": None,
+        "exercise_step": -1,
         "exercise_answers": {},
     }
