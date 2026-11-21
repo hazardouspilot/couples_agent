@@ -34,6 +34,7 @@ from dataclasses import dataclass, field
 from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage
 
 from app.memory import db
+from app.nodes.crisis import CRISIS_REPLY_FALLBACK
 from app.resources.crisis_resources import format_crisis_message, format_joint_session_message
 
 # Highest priority first: decides which resource message is shown when
@@ -189,17 +190,28 @@ def output_check(state) -> dict:
     reply = state["messages"][-1]
     text = reply.text if isinstance(reply, AIMessage) else ""
     update: dict = {}
+    # A crisis turn: resources are already shown and this reply was written
+    # under the SAFETY HANDOFF rules (see crisis.py).
+    crisis_turn = bool((state.get("safety") or {}).get("triggered"))
 
     flags = neutrality_flags(text, state["partner_names"])
     if not text.strip():
         flags.append("empty_reply")  # e.g. a refusal; the turn still needs an answer
     if flags:
-        fallback = EMPTY_REPLY_FALLBACK if flags == ["empty_reply"] else NEUTRAL_FALLBACK
+        if crisis_turn:
+            fallback = CRISIS_REPLY_FALLBACK
+        elif flags == ["empty_reply"]:
+            fallback = EMPTY_REPLY_FALLBACK
+        else:
+            fallback = NEUTRAL_FALLBACK
         # RemoveMessage tells the add_messages reducer to delete that message;
         # the fallback is then appended in its place.
         update["messages"] = [RemoveMessage(id=reply.id), AIMessage(content=fallback)]
         update["output_flags"] = flags
         text = fallback
+
+    if crisis_turn:
+        return update  # don't show resources twice or log the same event again
 
     result = check_message(text)
     if result.triggered:

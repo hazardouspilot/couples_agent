@@ -202,11 +202,14 @@ def run_turn(graph, turn_input: dict, config: dict, debug: bool = False):
                     args = ", ".join(f"{k}={v!r}" for k, v in call["args"].items())
                     print(f"  [checking memory: {call['name']}({args})]")
 
+    # Code-written text (crisis resources) first, then the model's reply,
+    # unless the IPV protocol ended the session (no model reply that turn).
     state = graph.get_state(config).values
-    if not state["safety"]["triggered"]:
-        print("\n" + state["messages"][-1].text)
     for text in state.get("display", []):
         print("\n" + text)
+    if not state.get("session_ended"):
+        print("\n" + state["messages"][-1].text)
+    return state
 
 
 def run_session(couple_id: int, username: str, model, checkpointer) -> str:
@@ -275,11 +278,16 @@ def run_session(couple_id: int, username: str, model, checkpointer) -> str:
             if first_turn:
                 turn = {**new_session_state(couple_id, session_id, names), **turn}
             try:
-                run_turn(graph, turn, config, debug)
+                state = run_turn(graph, turn, config, debug)
                 first_turn = False
             except Exception as e:  # API/network errors: report, keep the session alive
                 print(f"\n[Something went wrong reaching the model: {type(e).__name__}: {e}]",
                       file=sys.stderr)
+                continue
+            if state.get("session_ended"):  # IPV protocol: wrap up, no curator
+                print("\n(This session has ended. Take care.)")
+                result = "logout"
+                break
     finally:
         # Always: close the session and delete its message history. The
         # end-of-session curator (Sat afternoon) will run just before this.

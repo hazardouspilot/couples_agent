@@ -9,6 +9,7 @@ from app.graph import make_checkpointer, thread_config
 from app.memory import db
 from app.memory import memory_store as ms
 from app.model import OFFLINE_REPLY, OfflineChatModel
+from app.resources.crisis_resources import JOINT_SESSION_INTRO
 from tests.fakes import FakeToolModel
 
 NAMES = {"partner_a": "Jordan", "partner_b": "Riley"}
@@ -60,18 +61,27 @@ def test_scripted_session_replies_and_cleans_up(monkeypatch, capsys, couple):
     assert list(cp.list(thread_config(session["id"]))) == []
 
 
-def test_crisis_turn_prints_resources_not_the_internal_note(monkeypatch, capsys, couple):
-    _run(monkeypatch, couple, FakeToolModel(), ["I want to kill myself", "/quit"])
+def test_crisis_turn_prints_resources_then_the_reply(monkeypatch, capsys, couple):
+    model = FakeToolModel(responses=[AIMessage(content="Thank you for telling us.")])
+    _run(monkeypatch, couple, model, ["I want to kill myself", "/quit"])
     out = capsys.readouterr().out
-    assert "13 11 14" in out
-    assert "SAFETY HANDOFF" not in out  # the note is for the model only
+    assert out.index("13 11 14") < out.index("Thank you for telling us.")
+    assert "SAFETY HANDOFF" not in out  # the safety note is for the model only
+
+
+def test_abuse_flag_ends_the_session(monkeypatch, capsys, couple):
+    # "never sent" would raise StopIteration if the loop asked for it.
+    result = _run(monkeypatch, couple, FakeToolModel(), ["he hits me"])
+    out = capsys.readouterr().out
+    assert result == "logout"
+    assert JOINT_SESSION_INTRO in out and "session has ended" in out
 
 
 def test_offline_mode_still_runs_the_safety_check(monkeypatch, capsys, couple):
-    _run(monkeypatch, couple, OfflineChatModel(), ["hello", "he hits me", "/quit"])
+    _run(monkeypatch, couple, OfflineChatModel(), ["hello", "I want to kill myself", "/quit"])
     out = capsys.readouterr().out
     assert OFFLINE_REPLY in out
-    assert "1800 737 732" in out
+    assert "13 11 14" in out
 
 
 def test_memory_command_shows_couple_docs_only(monkeypatch, capsys, couple):

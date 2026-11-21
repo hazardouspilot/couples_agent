@@ -23,6 +23,7 @@ With a checkpointer (graph.py), this whole state is saved after every node
 under the session's thread_id, so the next turn starts from it.
 """
 
+import operator
 from typing import Annotated, Literal, TypedDict
 
 from langchain_core.messages import AnyMessage
@@ -66,6 +67,15 @@ class CoupleState(TypedDict):
     #   (crisis resources). Not part of `messages`: the model never writes it.
     output_flags: list[str]              # output_check: rule names that fired
 
+    # Session-long safety record, kept across turns (NOT reset per turn).
+    # Reducer operator.add: a node returns {"safety_flags": ["self_harm"]}
+    # and LangGraph computes old + new, so flags accumulate. Categories only.
+    # The curator reads this; the prompt uses it to stay in SAFETY HANDOFF.
+    safety_flags: Annotated[list[str], operator.add]
+    # Set by `crisis` for abuse in joint mode (IPV protocol): the CLI ends
+    # the session, and the curator is skipped for it.
+    session_ended: bool
+
     # Exercise (Sat afternoon). String keys like "partner_a:facts", not
     # tuples: the checkpointer serialises state, and tuple keys don't survive.
     active_exercise: str | None
@@ -90,6 +100,8 @@ def new_session_state(couple_id: int, session_id: int,
         "tool_rounds": 0,
         "display": [],
         "output_flags": [],
+        "safety_flags": [],
+        "session_ended": False,
         "active_exercise": None,
         "exercise_answers": {},
     }

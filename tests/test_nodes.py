@@ -9,7 +9,7 @@ from langchain_core.messages import AIMessage, RemoveMessage
 from app.memory import db
 from app.memory import memory_store as ms
 from app.nodes.context import compute_temporal_context, load_context
-from app.nodes.crisis import CRISIS_NOTE, crisis
+from app.nodes.crisis import CRISIS_REPLY_FALLBACK, make_crisis_node, route_after_crisis
 from app.nodes.router import route_after_router, router
 from app.nodes.safety import (
     NEUTRAL_FALLBACK,
@@ -21,6 +21,7 @@ from app.nodes.safety import (
 from app.prompts import speaker_message
 from app.resources.crisis_resources import JOINT_SESSION_INTRO
 from app.state import new_session_state
+from tests.fakes import FakeToolModel
 
 NAMES = {"partner_a": "Jordan", "partner_b": "Riley"}
 
@@ -121,16 +122,44 @@ def test_router_keeps_active_exercise():
 
 # --- crisis ---
 
-def test_crisis_abuse_in_joint_mode_uses_neutral_text():
-    update = crisis({"safety": {"primary_category": "abuse"}, "joint_mode": True})
+def _crisis_state(category, *messages):
+    state = new_session_state(1, 1, NAMES)
+    state.update(messages=list(messages) or [speaker_message("...", "partner_a", NAMES)],
+                 speaker="partner_a", safety={"triggered": True, "categories": [category],
+                                              "primary_category": category})
+    return state
+
+
+def test_crisis_abuse_in_joint_mode_is_code_only_and_ends_session():
+    model = FakeToolModel(responses=[])  # any model call would raise (and be caught)
+    update = make_crisis_node(model)(_crisis_state("abuse"))
+    assert model.calls == []  # the model never sees the disclosure
     assert JOINT_SESSION_INTRO in update["display"][0]
-    assert update["messages"][0].content == CRISIS_NOTE
+    assert update["session_ended"] is True
+    assert update["safety_flags"] == ["abuse"]
+    assert "messages" not in update
+    assert route_after_crisis({**update}) == "end"
 
 
-def test_crisis_self_harm_uses_category_text():
-    update = crisis({"safety": {"primary_category": "self_harm"}, "joint_mode": True})
+def test_crisis_self_harm_shows_resources_then_model_replies_without_tools():
+    model = FakeToolModel(responses=[AIMessage(content="I'm really glad you said that.")])
+    update = make_crisis_node(model)(_crisis_state("self_harm"))
+
     assert "13 11 14" in update["display"][0]
     assert JOINT_SESSION_INTRO not in update["display"][0]
+    assert update["messages"][0].content == "I'm really glad you said that."
+    assert update["safety_flags"] == ["self_harm"]
+    call = model.calls[0]
+    assert call["kwargs"]["tool_choice"] == {"type": "none"}
+    assert "self-harm or suicide" in call["messages"][0].content  # the safety note
+    assert route_after_crisis({"session_ended": False}) == "output_check"
+
+
+def test_crisis_reply_falls_back_if_the_model_fails():
+    model = FakeToolModel(responses=[])  # raises when called
+    update = make_crisis_node(model)(_crisis_state("harm_to_others"))
+    assert update["messages"][0].content == CRISIS_REPLY_FALLBACK
+    assert "000" in update["display"][0]  # resources never depend on the model
 
 
 # --- output_check ---
@@ -191,3 +220,24 @@ def test_output_check_adds_resources_but_keeps_reply(couple):
     assert "13 11 14" in update["display"][0]
     assert update["output_flags"] == ["safety:self_harm"]
     assert _safety_rows(couple) == [{"category": "self_harm"}]
+
+
+def _crisis_turn(couple_id, session_id, reply_text):
+    state = _state(couple_id, session_id, AIMessage(content=reply_text, id="r1"))
+    state["safety"] = {"triggered": True, "categories": ["self_harm"],
+                       "primary_category": "self_harm"}
+    return state
+
+
+def test_output_check_crisis_reply_mentioning_suicide_is_left_alone(couple):
+    # Resources were already shown by `crisis`; don't show or log them twice.
+    s = db.start_session(couple)
+    reply = "Thoughts of suicide are really heavy to carry. Please reach out to Lifeline."
+    assert output_check(_crisis_turn(couple, s, reply)) == {}
+    assert _safety_rows(couple) == []
+
+
+def test_output_check_bad_crisis_reply_gets_the_crisis_fallback(couple):
+    s = db.start_session(couple)
+    update = output_check(_crisis_turn(couple, s, ""))
+    assert update["messages"][1].content == CRISIS_REPLY_FALLBACK

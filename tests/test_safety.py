@@ -102,3 +102,15 @@ def test_state_form_when_clear():
 )
 def test_hurt_feelings_is_not_harm_to_others():
     assert not check_message("I didn't mean to hurt her feelings").triggered
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="False NEGATIVE, found in a live run (Sat 21 Nov): indirect suicidal "
+    "ideation isn't matched, so no resources are shown (the model still responded "
+    "with care, but referred to resources that weren't on screen). For the Sunday eval.",
+)
+def test_better_off_without_me_is_flagged():
+    assert check_message(
+        "Some nights I think everyone would be better off if I wasn't here."
+    ).primary_category == "self_harm"

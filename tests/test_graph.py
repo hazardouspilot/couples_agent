@@ -17,8 +17,7 @@ from app.graph import (
 )
 from app.memory import db
 from app.memory import memory_store as ms
-from app.nodes.converse import MAX_TOOL_ROUNDS
-from app.nodes.crisis import CRISIS_NOTE
+from app.nodes.converse import EARLIER_SAFETY_NOTE, MAX_TOOL_ROUNDS
 from app.nodes.safety import NEUTRAL_FALLBACK
 from app.prompts import speaker_message
 from app.state import new_session_state
@@ -56,14 +55,36 @@ def test_normal_turn_reaches_model_and_back(session):
     assert out["display"] == []
 
 
-def test_flagged_message_never_reaches_the_model(session):
-    model = FakeToolModel(responses=[])  # any model call would raise
+def test_flagged_message_skips_normal_chat_and_gets_a_handoff_reply(session):
+    model = FakeToolModel(responses=[AIMessage(content="I'm so glad you told us.")])
     graph = build_graph(model, session["cp"])
     out = graph.invoke(_first_turn(session, "I want to kill myself"),
                        thread_config(session["session"]))
-    assert model.calls == []
     assert "13 11 14" in out["display"][0]
-    assert out["messages"][-1].content == CRISIS_NOTE
+    assert out["messages"][-1].content == "I'm so glad you told us."
+    # One model call, from `crisis`, with tools off: never the converse path.
+    assert len(model.calls) == 1
+    assert model.calls[0]["kwargs"]["tool_choice"] == {"type": "none"}
+    assert out["safety_flags"] == ["self_harm"]
+
+
+def test_abuse_in_joint_session_never_reaches_the_model_and_ends(session):
+    model = FakeToolModel(responses=[])  # any model call would raise
+    graph = build_graph(model, session["cp"])
+    out = graph.invoke(_first_turn(session, "he hits me"), thread_config(session["session"]))
+    assert model.calls == []
+    assert out["session_ended"] is True
+    assert "1800 737 732" in out["display"][0]
+    assert out["messages"][-1].content == "Jordan: he hits me"  # no reply added
+
+
+def test_later_turns_keep_the_safety_posture(session):
+    model = FakeToolModel(responses=[AIMessage(content="I'm here."), AIMessage(content="ok")])
+    graph = build_graph(model, session["cp"])
+    config = thread_config(session["session"])
+    graph.invoke(_first_turn(session, "I want to kill myself"), config)
+    graph.invoke(_next_turn("can we keep talking?"), config)
+    assert EARLIER_SAFETY_NOTE in model.calls[1]["messages"][0].content
 
 
 def test_tool_loop_runs_tools_then_answers(session):
@@ -120,12 +141,14 @@ def test_checkpointer_carries_state_between_turns(session):
 
 
 def test_per_turn_fields_reset_after_a_crisis_turn(session):
-    model = FakeToolModel(responses=[AIMessage(content="I'm here with you both.")])
+    model = FakeToolModel(responses=[AIMessage(content="I'm here."),
+                                     AIMessage(content="I'm here with you both.")])
     graph = build_graph(model, session["cp"])
     config = thread_config(session["session"])
     graph.invoke(_first_turn(session, "I want to kill myself"), config)
     out = graph.invoke(_next_turn("ok, can we keep talking?"), config)
     assert out["display"] == [] and out["safety"]["triggered"] is False
+    assert out["safety_flags"] == ["self_harm"]  # session-long: NOT reset
 
 
 def test_delete_session_thread_removes_message_history(session):

@@ -23,6 +23,14 @@ from app.tools.memory import MEMORY_TOOLS
 
 MAX_TOOL_ROUNDS = 4  # as in v0.4
 
+# Every later turn of a session where the safety system fired (from the
+# session-long `safety_flags`): keep the SAFETY HANDOFF posture.
+EARLIER_SAFETY_NOTE = (
+    "Earlier in this session the app showed the couple support services. Keep "
+    "following the SAFETY HANDOFF rules, and check in gently before going back to "
+    "earlier topics."
+)
+
 
 def make_converse_node(model):
     """Build the node around a given chat model (the real ChatAnthropic in
@@ -46,6 +54,7 @@ def make_converse_node(model):
             profile_overview=state.get("profile_overview"),
             turn_note=turn_balance_note(state["messages"], names),
             active_exercise=state.get("active_exercise"),
+            safety_note=EARLIER_SAFETY_NOTE if state.get("safety_flags") else None,
             lookups_done=capped,  # tells the model WHY tools are off (see prompts.py)
         )
         messages = [SystemMessage(content=system), *state["messages"]]

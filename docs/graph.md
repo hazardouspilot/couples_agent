@@ -22,12 +22,13 @@ graph TD;
 	__start__ --> load_context;
 	converse -.-> output_check;
 	converse -.-> tools;
+	crisis -. &nbsp;end&nbsp; .-> __end__;
+	crisis -.-> output_check;
 	load_context --> safety_gate;
 	router -.-> converse;
 	safety_gate -.-> crisis;
 	safety_gate -.-> router;
 	tools --> converse;
-	crisis --> __end__;
 	output_check --> __end__;
 	classDef default fill:#f2f0ff,line-height:1.2
 	classDef first fill-opacity:0

@@ -1,7 +1,8 @@
 r"""
 The per-turn graph: wiring of the nodes, plus the checkpointer.
 
-    START -> load_context -> safety_gate --(flagged)--> crisis -> END
+    START -> load_context -> safety_gate --(flagged)--> crisis --(IPV)--> END
+                                         |                     \--------> output_check
                                          \--(clear)---> router -> converse <-> tools
                                                                      \-> output_check -> END
 
@@ -44,7 +45,7 @@ from langgraph.prebuilt import ToolNode
 
 from app.nodes.context import load_context
 from app.nodes.converse import make_converse_node, route_after_converse
-from app.nodes.crisis import crisis
+from app.nodes.crisis import make_crisis_node, route_after_crisis
 from app.nodes.router import route_after_router, router
 from app.nodes.safety import output_check, route_after_safety, safety_gate
 from app.state import CoupleState
@@ -57,7 +58,7 @@ def build_graph(model, checkpointer=None):
 
     g.add_node("load_context", load_context)
     g.add_node("safety_gate", safety_gate)
-    g.add_node("crisis", crisis)
+    g.add_node("crisis", make_crisis_node(model))
     g.add_node("router", router)
     g.add_node("converse", make_converse_node(model))
     g.add_node("tools", ToolNode(MEMORY_TOOLS))
@@ -67,7 +68,8 @@ def build_graph(model, checkpointer=None):
     g.add_edge("load_context", "safety_gate")
     g.add_conditional_edges("safety_gate", route_after_safety,
                             {"crisis": "crisis", "router": "router"})
-    g.add_edge("crisis", END)
+    g.add_conditional_edges("crisis", route_after_crisis,
+                            {"end": END, "output_check": "output_check"})
     # Only "converse" for now; Sat afternoon adds "exercise".
     g.add_conditional_edges("router", route_after_router, {"converse": "converse"})
     g.add_conditional_edges("converse", route_after_converse,
