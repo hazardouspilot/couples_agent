@@ -7,8 +7,8 @@ here, never sent to the graph or the model) or is a message from whichever
 partner is currently speaking, which runs the per-turn graph once.
 
 Ported from counselling_agent v0.4 (main.py): login flow, /memory, /crisis,
-two-step /forget. New: speaker switching, the LangGraph turn loop, and
-thread deletion at the end of a session.
+two-step /forget. New: speaker switching, the LangGraph turn loop, and at
+session end: the curator (on /quit or /logout), then thread deletion.
 """
 
 import sys
@@ -16,6 +16,7 @@ from getpass import getpass
 
 from dotenv import load_dotenv
 
+from app.curator import curate_session
 from app.graph import (
     build_graph,
     delete_session_thread,
@@ -53,9 +54,9 @@ Commands:
   /memory <n>              show one memory document in full
   /crisis                  show support services immediately
   /debug                   toggle showing each graph node as it runs
-  /logout                  end this session and log out
+  /logout                  save memory, end this session and log out
   /forget                  permanently delete this couple account and all data
-  /quit                    end the session and exit
+  /quit                    save memory, end the session and exit
   /help                    show this message
 
 Anything else is a message from the current speaker.
@@ -230,6 +231,9 @@ def run_session(couple_id: int, username: str, model, checkpointer) -> str:
         print("[No API key configured: commands and the safety check work, chat replies don't.]")
 
     speaker, first_turn, debug, result = "partner_a", True, False, "quit"
+    # Curate only on a deliberate /quit or /logout. Not on Ctrl+C/EOF or a
+    # crash, not after /forget, and not after the IPV protocol ended it.
+    curate = False
     try:
         while True:
             line = _ask(f"\n{names[speaker]}> ")
@@ -241,9 +245,10 @@ def run_session(couple_id: int, username: str, model, checkpointer) -> str:
             cmd, _, arg = line.partition(" ")
             cmd = cmd.lower()
             if cmd in ("/quit", "/exit"):
+                curate = True
                 break
             if cmd == "/logout":
-                result = "logout"
+                result, curate = "logout", True
                 break
             if cmd == "/help":
                 print("\n" + HELP_TEXT.format(a=a))
@@ -289,12 +294,37 @@ def run_session(couple_id: int, username: str, model, checkpointer) -> str:
                 result = "logout"
                 break
     finally:
-        # Always: close the session and delete its message history. The
-        # end-of-session curator (Sat afternoon) will run just before this.
+        # Curator first (it reads the session from the checkpoint), THEN
+        # always close the session and delete its message history.
+        if curate and not first_turn:
+            try:
+                run_curator(graph, config, model, couple_id, session_id)
+            except KeyboardInterrupt:  # impatient Ctrl+C: skip memory, still clean up
+                print("\n[Skipped saving memory.]")
         if db.get_partner_names(couple_id):  # account still exists (not /forget)
             db.end_session(session_id)
         delete_session_thread(checkpointer, session_id)
     return result
+
+
+def run_curator(graph, config: dict, model, couple_id: int, session_id: int):
+    """Curate the session's memory and show the couple what was remembered
+    (v0.4's transparency rule). Never raises: exit must not be blocked."""
+    try:
+        state = graph.get_state(config).values
+    except Exception:
+        return
+    if not state.get("messages") or state.get("session_ended"):
+        return  # nothing said / IPV protocol: write nothing at all
+    print("\n[Saving what to remember from this session...]")
+    notes = curate_session(model, couple_id, session_id, state["messages"],
+                           safety_flagged=bool(state.get("safety_flags")),
+                           now_text=state.get("now_text"),
+                           temporal_context=state.get("temporal_context"))
+    for note in notes:
+        print(f"  - {note}")
+    if notes:
+        print("  (See /memory next time to read or check it.)")
 
 
 def main():
