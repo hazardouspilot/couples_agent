@@ -1,0 +1,39 @@
+[project]
+name = "couples-agent"
+version = "0.1.0"
+description = "Couples relationship-skills companion built on LangGraph (learning project)."
+requires-python = ">=3.11,<3.12"
+# Exact pins, per SPEC.md. LangGraph / langchain-anthropic are added in the
+# Sat-midday step, when the graph is built.
+dependencies = [
+    "argon2-cffi==25.1.0",
+    "python-dotenv==1.2.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.2.0",
+    "ruff==0.17.6",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Puts the repo root on sys.path so tests can `import app...` without the
+# sys.path.insert hack every v0.4 test file carried.
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# E/F: pycodestyle + pyflakes basics, I: import sorting, B: common bug patterns,
+# UP: modern-Python upgrades.
+select = ["E", "F", "I", "B", "UP"]

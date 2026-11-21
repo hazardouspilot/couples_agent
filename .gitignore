@@ -1,2 +1,25 @@
+# Secrets: never commit. .env.example (placeholders only) is tracked.
 .env
+.env.*
+!.env.example
+
+# Local Claude Code settings
 .claude
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Data: memory DB and LangGraph checkpoints hold personal content
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# v0.4 opt-in transcript dumps, in case that feature is ever ported
+transcripts/
+*.log
