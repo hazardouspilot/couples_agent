@@ -14,6 +14,10 @@ Settings, checked against the current Claude API reference:
 
 import os
 
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
+
 DEFAULT_MODEL = "claude-opus-5-5"
 DEFAULT_EFFORT = "medium"
 MAX_TOKENS = 16000
@@ -32,3 +36,32 @@ def make_chat_model():
         betas=["server-side-fallback-2026-07-01"],
         model_kwargs={"fallbacks": "default"},
     )
+
+
+OFFLINE_REPLY = (
+    "[No ANTHROPIC_API_KEY configured, so I can't reply. Add one to .env to chat. "
+    "Commands like /memory and /crisis still work, and the safety check still runs "
+    "on everything you type.]"
+)
+
+
+class OfflineChatModel(BaseChatModel):
+    """Stand-in used when no API key is set. The graph still runs (so the
+    safety gate still checks every message), but the reply is a fixed notice."""
+
+    @property
+    def _llm_type(self) -> str:
+        return "offline"
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs) -> ChatResult:
+        return ChatResult(generations=[ChatGeneration(message=AIMessage(content=OFFLINE_REPLY))])
+
+    def bind_tools(self, tools, **kwargs):
+        return self
+
+
+def get_model():
+    """The real model if a key is configured, else the offline stand-in."""
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return make_chat_model()
+    return OfflineChatModel()
