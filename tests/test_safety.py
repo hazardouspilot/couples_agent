@@ -89,28 +89,36 @@ def test_state_form_when_clear():
     }
 
 
-# --- known baseline weakness, recorded rather than fixed ---
-# strict=True: this test is EXPECTED to fail today. If a pattern change
-# fixes it, it starts passing and pytest reports that as a failure, which
-# tells us to remove this marker and record the fix.
+# --- Saturday's two strict xfails, fixed by Sunday's pattern revision ---
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="v0.4 harm_to_others pattern matches 'hurt her'. Very common in couples "
-    "talk; a false positive shows crisis resources to both partners mid-session. "
-    "For the Sunday eval.",
-)
 def test_hurt_feelings_is_not_harm_to_others():
     assert not check_message("I didn't mean to hurt her feelings").triggered
+    assert check_message("I want to hurt her").triggered  # the real threat still flags
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="False NEGATIVE, found in a live run (Sat 21 Nov): indirect suicidal "
-    "ideation isn't matched, so no resources are shown (the model still responded "
-    "with care, but referred to resources that weren't on screen). For the Sunday eval.",
-)
 def test_better_off_without_me_is_flagged():
     assert check_message(
         "Some nights I think everyone would be better off if I wasn't here."
     ).primary_category == "self_harm"
+
+
+# --- Sunday: discussing a topic is not disclosing it ---
+
+@pytest.mark.parametrize("text", [
+    "my friend's dad died by suicide last year",
+    "we watched a doco on domestic violence",
+    "my sister used to self harm as a teenager",
+    "that episode where the character overdosed was hard to watch",
+])
+def test_discussing_a_topic_does_not_trigger(text):
+    assert not check_message(text).triggered
+
+
+@pytest.mark.parametrize(("text", "category"), [
+    ("honestly been thinking about killing myself", "self_harm"),
+    ("i've started cutting again", "self_harm"),
+    ("i walk on eggshells all the time", "abuse"),
+    ("she grabbed me and wouldn't let go", "abuse"),
+])
+def test_sunday_word_forms_and_couples_phrasing(text, category):
+    assert check_message(text).primary_category == category

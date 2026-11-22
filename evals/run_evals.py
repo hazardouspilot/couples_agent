@@ -278,6 +278,8 @@ def main(argv=None) -> Path:
     p.add_argument("--label", default="", help="name for this run, e.g. baseline")
     p.add_argument("--classifier", action="store_true",
                    help="add the LLM safety classifier to the regex (live, costs money)")
+    p.add_argument("--regex", choices=["current", "v04"], default="current",
+                   help="v04 = the frozen original patterns (the 'before')")
     p.add_argument("--dataset", default="safety.jsonl",
                    help="safety dataset in evals/datasets/, e.g. safety_holdout.jsonl")
     args = p.parse_args(argv)
@@ -297,15 +299,19 @@ def main(argv=None) -> Path:
     safety_cases = load_jsonl(DATASETS / args.dataset)
     if not safety_cases:
         sys.exit(f"No cases in {DATASETS / args.dataset}.")
-    m = safety_metrics(safety_cases,
-                       predict=lambda t: check_with_classifier(t, classifier).categories)
+    compiled = None
+    if args.regex == "v04":
+        from evals.baseline_patterns import V04_COMPILED
+        compiled = V04_COMPILED
+    m = safety_metrics(
+        safety_cases, predict=lambda t: check_with_classifier(t, classifier, compiled).categories)
     a = m["any_flag"]
     print(f"Safety: {m['n']} cases | any-flag precision {_pct(a['precision'])}, "
           f"recall {_pct(a['recall'])} | " + ", ".join(
               f"{c} R {_pct(s['recall'])}" for c, s in m["per_category"].items()))
 
     stamp = datetime.now().strftime("%Y-%m-%d-%H%M")
-    gate = "regex + LLM classifier" if classifier else "regex"
+    gate = f"{args.regex} regex" + (" + LLM classifier" if classifier else "")
     sections = [f"# Eval report {stamp}{' (' + args.label + ')' if args.label else ''}",
                 f"Safety dataset: `{args.dataset}`. Gate: {gate}."
                 + (f" Model: `{model_name}`." if model_name else ""),

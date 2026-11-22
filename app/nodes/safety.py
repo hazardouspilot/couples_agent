@@ -69,32 +69,69 @@ class SafetyResult:
 
 # (regex, category). \b = word boundary; matching is case-insensitive.
 # Patterns favour recall over precision on purpose.
+#
+# Sunday revision (v0.4 list frozen in evals/baseline_patterns.py). Written
+# from the dev-set miss table, so they're fitted to those 60 messages; the
+# honest number is on evals/datasets/safety_holdout.jsonl. Three kinds of change:
+#   1. Word forms: "killing myself", "cutting again".
+#   2. Discussing vs disclosing: bare "suicide", "self harm", "overdose" and
+#      "domestic violence" flagged people talking ABOUT a topic. They now need
+#      a first-person shape. This trades some regex recall for precision, a
+#      trade only safe because the LLM classifier now backs up the regex.
+#   3. Couples phrasing: coercive control, partner violence, indirect ideation.
+_I = r"(i|i'?m|i am|i'?ve|i have|been|feel(ing)?)"  # first-person lead-ins
 _PATTERNS = [
     # --- Suicide / self-harm ---
-    (r"\bsuicid(e|al)\b", "self_harm"),
-    (r"\bkill myself\b", "self_harm"),
+    (r"\bsuicidal\b", "self_harm"),
+    (rf"\b{_I} .{{0,20}}\b(thinking about|thoughts of|considering|attempt(ed)?) suicide\b",
+     "self_harm"),
+    (r"\bkill(ing)? myself\b", "self_harm"),
     (r"\bend(ing)? my life\b", "self_harm"),
     (r"\bwant(ed)? to die\b", "self_harm"),
     (r"\bdon'?t want to (be alive|live|exist)\b", "self_harm"),
     (r"\bno reason to live\b", "self_harm"),
-    (r"\bbetter off (dead|without me)\b", "self_harm"),
-    (r"\bself[\s-]?harm\b", "self_harm"),
+    (r"\bbetter off (dead|without me|if i (was|were|wasn'?t|weren'?t) (here|around|gone|dead))\b",
+     "self_harm"),
+    (r"\b(cope|be fine|manage) (fine )?without me\b", "self_harm"),
+    (r"\b(a )?burden (on|to) (everyone|everybody|you all)\b", "self_harm"),
+    (r"\b(won'?t|wont|not going to) be (around|here) (much )?(longer|anymore)\b", "self_harm"),
+    (r"\b(go to sleep|fall asleep) and (not|never) wake up\b", "self_harm"),
+    (rf"\b{_I} .{{0,15}}self[\s-]?harm", "self_harm"),
     (r"\bhurt(ing)? myself\b", "self_harm"),
-    (r"\bcutt?ing myself\b", "self_harm"),
-    (r"\boverdos(e|ing)\b", "self_harm"),
-    (r"\bgoing to (kill|hurt) myself\b", "self_harm"),
-    (r"\bplan(ning)? to (kill|hurt) myself\b", "self_harm"),
+    (r"\b(cutt?ing|cut) (myself|again)\b", "self_harm"),
+    (r"\b(take|taking|took) an overdose\b|\boverdos(e|ing) on\b", "self_harm"),
+    (r"\bhow many (of my )?(pills|tablets)\b", "self_harm"),
+    (r"\bgiving away (some of )?my (stuff|things)\b", "self_harm"),
     (r"\bsuicide (plan|note)\b", "self_harm"),
     # --- Harm to others ---
-    (r"\b(kill|hurt|attack|shoot|stab) (him|her|them|someone|somebody)\b", "harm_to_others"),
-    (r"\bwant(ed)? to (kill|hurt) (him|her|them|somebody|someone)\b", "harm_to_others"),
+    # (?!\s+feelings): "hurt her feelings" is everyday couples talk.
+    (r"\b(kill|hurt|attack|shoot|stab) (him|her|them|someone|somebody)\b(?!'?s?\s+feelings)",
+     "harm_to_others"),
+    (r"\bwant(ed)? to (kill|hurt) (him|her|them|somebody|someone)\b(?!'?s?\s+feelings)",
+     "harm_to_others"),
     (r"\bmake (him|her|them) pay\b", "harm_to_others"),
     (r"\bkill (people|everyone)\b", "harm_to_others"),
+    (r"\bput (him|her|them) in (the )?hospital\b", "harm_to_others"),
+    (r"\brun(ning)? (him|her|them|his car|her car|their car) off the road\b", "harm_to_others"),
     # --- Abuse / domestic violence ---
-    (r"\bhe hits me\b|\bshe hits me\b|\bthey hit me\b", "abuse"),
+    # In a joint session an abuse flag ends the session, so these need a
+    # specific shape: a partner doing something TO the speaker.
+    (r"\b(he|she|they) (hit|hits|hurt|hurts|pushed|pushes|shoved|choked|slapped|grabbed) me\b",
+     "abuse"),
+    (r"\bgrabbed my (wrist|arm|neck|throat)\b", "abuse"),
+    (r"\b(threw|throws|smashed|smashes) my (phone|stuff|things)\b", "abuse"),
+    (r"\bhole in the (wall|door)\b|\bpunched (a|the) (wall|door)\b", "abuse"),
     (r"\b(being|getting) abused\b", "abuse"),
-    (r"\bdomestic violence\b", "abuse"),
+    (r"\b(experiencing|victim of|living with|going through) domestic (violence|abuse)\b", "abuse"),
     (r"\bafraid (of|for) my (life|safety)\b", "abuse"),
+    (r"\b(scared|afraid) to (say|talk|speak)\b", "abuse"),
+    (r"\bwalk(ing)? on eggshells\b", "abuse"),
+    (r"\b(checks|goes through) my phone\b", "abuse"),
+    (r"\bi'?m not allowed to (see|go|work|have|talk)\b", "abuse"),
+    (r"\bhave to ask (for|permission)\b.{0,20}\bmoney\b|\bask for money\b", "abuse"),
+    (r"\bhas my location\b", "abuse"),
+    (r"\bif i (ever )?leave\b.{0,50}\b(never see|kill|hurt|take the kids)\b", "abuse"),
+    (r"\bgo along with sex\b", "abuse"),
     (r"\bhe threatened (to kill|me)\b|\bshe threatened (to kill|me)\b", "abuse"),
     (r"\bsexual(ly)? assault(ed)?\b", "abuse"),
     (r"\brape(d)?\b", "abuse"),
@@ -103,13 +140,14 @@ _PATTERNS = [
 _COMPILED = [(re.compile(p, re.IGNORECASE), cat) for p, cat in _PATTERNS]
 
 
-def check_message(text: str | None) -> SafetyResult:
-    """Scan one message for crisis indicators. Check `.triggered`."""
+def check_message(text: str | None, compiled=None) -> SafetyResult:
+    """Scan one message for crisis indicators. Check `.triggered`.
+    compiled: another pattern list (the eval passes the frozen v0.4 one)."""
     if not text:
         return SafetyResult(triggered=False)
 
     categories, matched = [], []
-    for pattern, category in _COMPILED:
+    for pattern, category in compiled or _COMPILED:
         m = pattern.search(text)
         if m:
             matched.append(m.group(0))
@@ -123,11 +161,11 @@ def check_message(text: str | None) -> SafetyResult:
 # Graph nodes
 # ======================================================================
 
-def check_with_classifier(text: str | None, classifier=None) -> SafetyResult:
+def check_with_classifier(text: str | None, classifier=None, compiled=None) -> SafetyResult:
     """Regex first; if it's clear and a classifier is given, ask the
     classifier too. Union only: the classifier can add a flag, never remove
     one (see safety_classifier.py)."""
-    result = check_message(text)
+    result = check_message(text, compiled)
     if result.triggered or classifier is None or not text:
         return result
     categories = classifier(text)

@@ -12,7 +12,7 @@ from app.state import new_session_state
 from tests.fakes import FakeToolModel
 
 NAMES = {"partner_a": "Sam", "partner_b": "Alex"}
-INDIRECT = "everyone would be better off if I wasn't here"  # regex misses this
+INDIRECT = "wrote a few letters last night, just in case"  # regex misses this
 
 
 def _classifier(*verdicts):
