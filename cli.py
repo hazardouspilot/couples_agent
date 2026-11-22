@@ -25,7 +25,7 @@ from app.graph import (
     thread_config,
 )
 from app.memory import auth, db, memory_store, timeutil
-from app.model import OfflineChatModel, get_model
+from app.model import OfflineChatModel, get_model, get_safety_classifier
 from app.nodes.context import compute_temporal_context
 from app.nodes.exercise import EXERCISE_KEY, expected_speaker
 from app.prompts import speaker_message
@@ -216,12 +216,12 @@ def run_turn(graph, turn_input: dict, config: dict, debug: bool = False):
     return state
 
 
-def run_session(couple_id: int, username: str, model, checkpointer) -> str:
+def run_session(couple_id: int, username: str, model, checkpointer, classifier=None) -> str:
     """Returns 'quit' or 'logout'."""
     names = db.get_partner_names(couple_id)
     session_id = db.start_session(couple_id)
     config = thread_config(session_id)
-    graph = build_graph(model, checkpointer)
+    graph = build_graph(model, checkpointer, classifier)
     _, _, gap = compute_temporal_context(couple_id, session_id)
 
     a, b = names["partner_a"], names["partner_b"]
@@ -364,13 +364,14 @@ def main():
     if leftover:
         print(f"[Deleted {len(leftover)} leftover conversation thread(s) from an earlier crash.]")
     model = get_model()
+    classifier = get_safety_classifier()
     print(BANNER)
 
     while True:
         login = prompt_login()
         if login is None:
             break
-        if run_session(*login, model, checkpointer) == "quit":
+        if run_session(*login, model, checkpointer, classifier) == "quit":
             break
         print("\nLogged out.\n")
     print("\nTake care of each other.")

@@ -23,16 +23,17 @@ DEFAULT_EFFORT = "medium"
 MAX_TOKENS = 16000
 
 
-def make_chat_model():
+def make_chat_model(effort: str | None = None):
     """ChatAnthropic is LangChain's adapter for Claude: it implements the
     shared chat-model interface (.invoke / .stream / .bind_tools) and
-    converts LangChain message objects to and from the Anthropic API."""
+    converts LangChain message objects to and from the Anthropic API.
+    effort overrides ANTHROPIC_EFFORT (the safety classifier uses "low")."""
     from langchain_anthropic import ChatAnthropic  # imported lazily: tests never need it
 
     return ChatAnthropic(
         model=os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL),
         max_tokens=MAX_TOKENS,
-        output_config={"effort": os.environ.get("ANTHROPIC_EFFORT", DEFAULT_EFFORT)},
+        output_config={"effort": effort or os.environ.get("ANTHROPIC_EFFORT", DEFAULT_EFFORT)},
         betas=["server-side-fallback-2026-07-01"],
         model_kwargs={"fallbacks": "default"},
     )
@@ -65,3 +66,11 @@ def get_model():
     if os.environ.get("ANTHROPIC_API_KEY"):
         return make_chat_model()
     return OfflineChatModel()
+
+
+def get_safety_classifier():
+    """The LLM safety classifier when online, else None (regex only)."""
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        return None
+    from app.nodes.safety_classifier import make_llm_classifier
+    return make_llm_classifier(make_chat_model(effort="low"))

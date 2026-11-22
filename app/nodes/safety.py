@@ -123,16 +123,37 @@ def check_message(text: str | None) -> SafetyResult:
 # Graph nodes
 # ======================================================================
 
-def safety_gate(state) -> dict:
-    """Runs the regex on this turn's message, before anything else can
-    reach the model. Logs the category only (never the text or speaker)."""
-    last_human = next(
-        (m for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), None
-    )
-    result = check_message(last_human.content if last_human else None)
-    if result.triggered:
-        db.log_safety_event(state["couple_id"], state["session_id"], result.primary_category)
-    return {"safety": result.as_state()}
+def check_with_classifier(text: str | None, classifier=None) -> SafetyResult:
+    """Regex first; if it's clear and a classifier is given, ask the
+    classifier too. Union only: the classifier can add a flag, never remove
+    one (see safety_classifier.py)."""
+    result = check_message(text)
+    if result.triggered or classifier is None or not text:
+        return result
+    categories = classifier(text)
+    return SafetyResult(triggered=bool(categories), categories=categories)
+
+
+def make_safety_gate(classifier=None):
+    """Builds the safety_gate node. classifier=None means regex only
+    (tests, offline mode); the CLI passes the LLM classifier when online."""
+
+    def safety_gate(state) -> dict:
+        """Checks this turn's message before anything else can reach the
+        model. Logs the category only (never the text or speaker)."""
+        last_human = next(
+            (m for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), None
+        )
+        result = check_with_classifier(last_human.content if last_human else None, classifier)
+        if result.triggered:
+            db.log_safety_event(state["couple_id"], state["session_id"],
+                                result.primary_category)
+        return {"safety": result.as_state()}
+
+    return safety_gate
+
+
+safety_gate = make_safety_gate()  # regex-only node, used by tests
 
 
 def route_after_safety(state) -> str:

@@ -52,17 +52,19 @@ from app.nodes.converse import make_converse_node, route_after_converse
 from app.nodes.crisis import make_crisis_node, route_after_crisis
 from app.nodes.exercise import exercise, make_reflect_node, route_after_exercise
 from app.nodes.router import route_after_router, router
-from app.nodes.safety import output_check, route_after_safety, safety_gate
+from app.nodes.safety import make_safety_gate, output_check, route_after_safety
 from app.state import CoupleState
 from app.tools.memory import MEMORY_TOOLS
 
 
-def build_graph(model, checkpointer=None):
-    """Wire and compile the per-turn graph around a chat model (real or fake)."""
+def build_graph(model, checkpointer=None, classifier=None):
+    """Wire and compile the per-turn graph around a chat model (real or fake).
+    classifier: optional LLM safety classifier (text -> categories) that
+    backs up the regex in safety_gate; None = regex only."""
     g = StateGraph(CoupleState)
 
     g.add_node("load_context", load_context)
-    g.add_node("safety_gate", safety_gate)
+    g.add_node("safety_gate", make_safety_gate(classifier))
     g.add_node("crisis", make_crisis_node(model))
     g.add_node("router", router)
     g.add_node("converse", make_converse_node(model))

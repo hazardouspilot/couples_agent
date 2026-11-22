@@ -30,6 +30,7 @@ import os
 import sys
 import tempfile
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
@@ -38,7 +39,7 @@ from pydantic import BaseModel, Field
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app.nodes.safety import check_message  # noqa: E402
+from app.nodes.safety import check_message, check_with_classifier  # noqa: E402
 
 DATASETS = ROOT / "evals" / "datasets"
 REPORTS = ROOT / "evals" / "reports"
@@ -70,7 +71,10 @@ def safety_metrics(cases: list[dict], predict=None) -> dict:
     categories`; defaults to the regex gate. Each case has one gold label
     (a category or "none"); the gate can return several categories."""
     predict = predict or (lambda text: check_message(text).categories)
-    rows = [{**c, "predicted": predict(c["text"])} for c in cases]
+    # Threads: a live classifier is I/O-bound, so 8 calls in flight at once.
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        predictions = list(pool.map(predict, [c["text"] for c in cases]))
+    rows = [{**c, "predicted": p} for c, p in zip(cases, predictions, strict=True)]
 
     per_category = {}
     for cat in CATEGORIES:
@@ -104,8 +108,8 @@ def safety_metrics(cases: list[dict], predict=None) -> dict:
             "by_kind": by_kind, "misses": misses}
 
 
-def safety_report(m: dict) -> str:
-    out = ["## 1. Safety gate (regex)", "",
+def safety_report(m: dict, title: str = "regex") -> str:
+    out = [f"## 1. Safety gate ({title})", "",
            f"{m['n']} messages: " + ", ".join(f"{k} {v}" for k, v in sorted(m["labels"].items())),
            "", "| Category | Support | Precision | Recall | TP | FP | FN |",
            "|---|---|---|---|---|---|---|"]
@@ -153,7 +157,7 @@ using the field descriptions. Be strict: 5 means nothing to improve. A reply tha
 warm but takes a side still scores low on neutrality."""
 
 
-def run_case(case: dict, model, workdir: Path) -> dict:
+def run_case(case: dict, model, workdir: Path, classifier=None) -> dict:
     """One case through the real graph, in its own throwaway database."""
     os.environ["COUPLES_AGENT_DB"] = str(workdir / f"{case['id']}.db")
     from app.graph import build_graph, make_checkpointer, thread_config
@@ -165,7 +169,8 @@ def run_case(case: dict, model, workdir: Path) -> dict:
     memory_store.seed_reference_documents()
     couple = db.create_couple(f"eval-{case['id']}", "x", NAMES["partner_a"], NAMES["partner_b"])
     session = db.start_session(couple)
-    graph = build_graph(model, make_checkpointer(str(workdir / f"{case['id']}-cp.db")))
+    graph = build_graph(model, make_checkpointer(str(workdir / f"{case['id']}-cp.db")),
+                        classifier)
     config = {**thread_config(session), "tags": ["eval", "rubric"], "run_name": case["id"]}
 
     state = None
@@ -244,9 +249,7 @@ def rubric_report(rows: list[dict]) -> str:
     return "\n".join(out)
 
 
-def run_rubric(cases: list[dict], limit: int | None) -> list[dict]:
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        sys.exit("--rubric needs ANTHROPIC_API_KEY (in .env).")
+def run_rubric(cases: list[dict], limit: int | None, classifier=None) -> list[dict]:
     from app.model import make_chat_model
 
     model = make_chat_model()
@@ -258,7 +261,7 @@ def run_rubric(cases: list[dict], limit: int | None) -> list[dict]:
         for case in cases[:limit]:
             print(f"  {case['id']} ({case.get('tests', '')})...", flush=True)
             try:
-                result = run_case(case, model, Path(tmp))
+                result = run_case(case, model, Path(tmp), classifier)
                 score = judge(case, result, judge_model)
                 rows.append({"case": case, **result, "score": score.model_dump()})
             except Exception as e:  # one bad case shouldn't sink the run
@@ -273,28 +276,44 @@ def main(argv=None) -> Path:
     p.add_argument("--rubric", action="store_true", help="also run the live rubric eval")
     p.add_argument("--limit", type=int, help="only the first N rubric cases")
     p.add_argument("--label", default="", help="name for this run, e.g. baseline")
+    p.add_argument("--classifier", action="store_true",
+                   help="add the LLM safety classifier to the regex (live, costs money)")
+    p.add_argument("--dataset", default="safety.jsonl",
+                   help="safety dataset in evals/datasets/, e.g. safety_holdout.jsonl")
     args = p.parse_args(argv)
 
-    safety_cases = load_jsonl(DATASETS / "safety.jsonl")
+    model_name = None
+    classifier = None
+    if args.rubric or args.classifier:
+        from dotenv import load_dotenv
+        load_dotenv(ROOT / ".env")
+        if not os.environ.get("ANTHROPIC_API_KEY"):
+            sys.exit("--rubric and --classifier need ANTHROPIC_API_KEY (in .env).")
+        model_name = os.environ.get("ANTHROPIC_MODEL", "claude-opus-5-5")
+    if args.classifier:
+        from app.model import get_safety_classifier
+        classifier = get_safety_classifier()
+
+    safety_cases = load_jsonl(DATASETS / args.dataset)
     if not safety_cases:
-        sys.exit(f"No cases in {DATASETS / 'safety.jsonl'}.")
-    m = safety_metrics(safety_cases)
+        sys.exit(f"No cases in {DATASETS / args.dataset}.")
+    m = safety_metrics(safety_cases,
+                       predict=lambda t: check_with_classifier(t, classifier).categories)
     a = m["any_flag"]
     print(f"Safety: {m['n']} cases | any-flag precision {_pct(a['precision'])}, "
           f"recall {_pct(a['recall'])} | " + ", ".join(
               f"{c} R {_pct(s['recall'])}" for c, s in m["per_category"].items()))
 
     stamp = datetime.now().strftime("%Y-%m-%d-%H%M")
+    gate = "regex + LLM classifier" if classifier else "regex"
     sections = [f"# Eval report {stamp}{' (' + args.label + ')' if args.label else ''}",
-                safety_report(m)]
+                f"Safety dataset: `{args.dataset}`. Gate: {gate}."
+                + (f" Model: `{model_name}`." if model_name else ""),
+                safety_report(m, gate)]
     if args.rubric:
         rubric_cases = load_jsonl(DATASETS / "rubric_cases.jsonl")
-        from dotenv import load_dotenv
-        load_dotenv(ROOT / ".env")
-        model_name = os.environ.get("ANTHROPIC_MODEL", "claude-opus-5-5")
         print(f"Rubric: {len(rubric_cases[:args.limit])} cases on {model_name}")
-        rows = run_rubric(rubric_cases, args.limit)
-        sections.insert(1, f"Model: `{model_name}`")
+        rows = run_rubric(rubric_cases, args.limit, classifier)
         sections.append(rubric_report(rows))
 
     REPORTS.mkdir(exist_ok=True)
