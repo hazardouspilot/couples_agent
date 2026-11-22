@@ -26,3 +26,6 @@ transcripts/
 
 # reports written by CI runs
 evals/reports/*-ci.md
+
+# Office lock files
+~$*

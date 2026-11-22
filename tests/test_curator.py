@@ -70,6 +70,20 @@ def test_material_drops_flagged_turn_and_its_reply():
     assert "rough week" in text and "Of course." in text
 
 
+def test_material_drops_turn_flagged_by_id_even_if_regex_misses_it():
+    # A classifier-only flag: the regex can't re-derive it, so the gate's
+    # recorded message ID is what keeps it out of long-term memory.
+    flagged = speaker_message("wrote a few letters last night, just in case", "partner_b", NAMES)
+    flagged.id = "msg-7"
+    text = format_session_material([
+        speaker_message("we had a rough week", "partner_a", NAMES),
+        flagged,
+        AIMessage(content="I'm really glad you said that. HANDOFF"),
+    ], flagged_ids=["msg-7"])
+    assert "letters" not in text and "HANDOFF" not in text
+    assert "rough week" in text
+
+
 def test_material_includes_exercise_records():
     records = [{"exercise_key": "conflict-debrief", "data": {"agreement": "Pause at 10pm"}}]
     text = format_session_material([], records)

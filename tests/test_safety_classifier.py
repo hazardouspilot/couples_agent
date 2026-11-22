@@ -3,6 +3,7 @@ from it takes the crisis path in the real graph. Fake model, no network."""
 
 from langchain_core.messages import AIMessage
 
+from app.curator import MemoryProposal, curate_session
 from app.graph import build_graph, make_checkpointer, thread_config
 from app.memory import db
 from app.nodes.safety import check_message, check_with_classifier
@@ -55,3 +56,31 @@ def test_classifier_flag_takes_the_crisis_path_with_code_resources(tmp_db, tmp_p
     assert "13 11 14" in out["display"][0]  # Lifeline, shown by code
     assert out["safety_flags"] == ["self_harm"]
     assert model.calls[0]["kwargs"]["tool_choice"] == {"type": "none"}  # crisis node, not converse
+
+
+def test_classifier_only_flag_never_reaches_the_curator(tmp_db, tmp_path):
+    """The gap found in the walkthrough: the curator used to re-run only the
+    regex, so a disclosure only the classifier caught went into memory."""
+    couple = db.create_couple("c", "h", "Sam", "Alex")
+    session = db.start_session(couple)
+    _, classify = _classifier(SafetyVerdict(category="none"), SafetyVerdict(category="self_harm"))
+    model = FakeToolModel(responses=[AIMessage(content="What happened?"),
+                                     AIMessage(content="I'm really glad you said that.")])
+    graph = build_graph(model, make_checkpointer(str(tmp_path / "cp.db")), classify)
+    config = thread_config(session)
+    graph.invoke({**new_session_state(couple, session, NAMES),
+                  "messages": [speaker_message("we argued about the bins", "partner_a", NAMES)],
+                  "speaker": "partner_a"}, config)
+    out = graph.invoke({"messages": [speaker_message(INDIRECT, "partner_b", NAMES)],
+                        "speaker": "partner_b"}, config)
+
+    flagged_id = out["messages"][-2].id  # Alex's message, before the handoff reply
+    assert out["safety_flagged_ids"] == [flagged_id]
+
+    curator_model = FakeToolModel(structured_responses=[
+        MemoryProposal(profile_overview="", session_note="Talked about the bins.")])
+    curate_session(curator_model, couple, session, out["messages"],
+                   safety_flagged=True, flagged_ids=out["safety_flagged_ids"])
+    seen = curator_model.calls[0]["messages"][-1].content
+    assert "bins" in seen
+    assert "letters" not in seen and "glad you said that" not in seen

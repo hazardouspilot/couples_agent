@@ -72,6 +72,11 @@ class CoupleState(TypedDict):
     # and LangGraph computes old + new, so flags accumulate. Categories only.
     # The curator reads this; the prompt uses it to stay in SAFETY HANDOFF.
     safety_flags: Annotated[list[str], operator.add]
+    # IDs (never text) of the partner messages the gate flagged, so the
+    # curator can leave those turns out of long-term memory. Needed since the
+    # LLM classifier: the curator can't re-derive a classifier-only flag by
+    # re-running the regex. Same reducer, same reason: session-long.
+    safety_flagged_ids: Annotated[list[str], operator.add]
     # Set by `crisis` for abuse in joint mode (IPV protocol): the CLI ends
     # the session, and the curator is skipped for it.
     session_ended: bool
@@ -102,6 +107,7 @@ def new_session_state(couple_id: int, session_id: int,
         "display": [],
         "output_flags": [],
         "safety_flags": [],
+        "safety_flagged_ids": [],
         "session_ended": False,
         "active_exercise": None,
         "exercise_step": -1,

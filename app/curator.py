@@ -72,22 +72,28 @@ class MemoryProposal(BaseModel):
 # --- session material ---
 
 def format_session_material(messages: list[AnyMessage],
-                            exercise_records: list[dict] | None = None) -> str:
+                            exercise_records: list[dict] | None = None,
+                            flagged_ids: list[str] | None = None) -> str:
     """The session as text for the curator. "" if nothing to curate.
 
     Leaves out:
       - tool calls and tool results (that's memory already on file);
-      - SAFETY-FLAGGED TURNS: any partner message the safety regex flags,
-        and the reply to it. The same check_message as safety_gate, re-run
-        here, so no extra state is needed. The curator is told a flag
-        occurred (see step 3), but never sees or writes the content, because
-        both partners can read couple memory with /memory.
+      - SAFETY-FLAGGED TURNS, and the reply to each. The curator is told a
+        flag occurred (see step 3), but never sees or writes the content,
+        because both partners can read couple memory with /memory.
+
+    Which turns were flagged: the IDs safety_gate recorded (flagged_ids),
+    which covers flags from the regex AND the LLM classifier. The regex is
+    re-run too, as a second net (e.g. a thread from before IDs were kept).
+    Originally this only re-ran the regex; adding the classifier silently
+    opened a gap, found while explaining the design in a walkthrough.
     """
+    flagged = set(flagged_ids or [])
     lines: list[str] = []
     skipping = False
     for m in messages:
         if isinstance(m, HumanMessage):
-            skipping = check_message(m.text).triggered
+            skipping = m.id in flagged or check_message(m.text).triggered
             if not skipping:
                 lines.append(m.text)  # already "Name: text"
         elif isinstance(m, AIMessage) and not skipping and m.text.strip():
@@ -182,6 +188,7 @@ class CuratorState(TypedDict, total=False):
     session_id: int
     messages: list[AnyMessage]       # the session, from the checkpoint
     safety_flagged: bool
+    flagged_ids: list[str]           # IDs of messages the safety gate flagged
     now_text: str | None
     temporal_context: str | None
     # Set by nodes
@@ -207,7 +214,8 @@ def _existing_documents(couple_id: int) -> str:
 def gather(state: CuratorState) -> dict:
     """CODE assembles everything the model needs: no tool calls."""
     material = format_session_material(
-        state["messages"], _session_exercise_records(state["couple_id"], state["session_id"]))
+        state["messages"], _session_exercise_records(state["couple_id"], state["session_id"]),
+        state.get("flagged_ids"))
     if not material.strip():
         return {"prompt": None}
 
@@ -260,14 +268,16 @@ def build_curator_graph(model):
 
 def curate_session(model, couple_id: int, session_id: int, messages: list[AnyMessage],
                    safety_flagged: bool = False, now_text: str | None = None,
-                   temporal_context: str | None = None) -> list[str]:
+                   temporal_context: str | None = None,
+                   flagged_ids: list[str] | None = None) -> list[str]:
     """Run the curator. Returns the notes to show the couple ([] if nothing
     was written). NEVER raises: a failed curation must not block exit
     (v0.4 rule). The cost of failing is one session's memory, not the app."""
     try:
         out = build_curator_graph(model).invoke(
             {"couple_id": couple_id, "session_id": session_id, "messages": messages,
-             "safety_flagged": safety_flagged, "now_text": now_text,
+             "safety_flagged": safety_flagged, "flagged_ids": flagged_ids or [],
+             "now_text": now_text,
              "temporal_context": temporal_context},
             {"run_name": "curator"})
         return out.get("notes", [])

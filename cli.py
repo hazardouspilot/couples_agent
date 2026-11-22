@@ -356,7 +356,8 @@ def run_curator(graph, config: dict, model, couple_id: int, session_id: int):
     notes = curate_session(model, couple_id, session_id, state["messages"],
                            safety_flagged=bool(state.get("safety_flags")),
                            now_text=state.get("now_text"),
-                           temporal_context=state.get("temporal_context"))
+                           temporal_context=state.get("temporal_context"),
+                           flagged_ids=state.get("safety_flagged_ids"))
     for note in notes:
         print(f"  - {note}")
     if notes:

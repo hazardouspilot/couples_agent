@@ -189,11 +189,15 @@ def make_safety_gate(classifier=None):
             (m for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), None
         )
         result = check_with_classifier(last_human.content if last_human else None, classifier)
+        update = {"safety": result.as_state()}
         if result.triggered:
             db.log_safety_event(state["couple_id"], state["session_id"],
                                 result.primary_category)
             SAFETY_TRIGGERS.labels(result.primary_category, result.layer).inc()
-        return {"safety": result.as_state()}
+            # The message's ID (add_messages assigned it), so the curator can
+            # skip this turn. An ID, not text: data minimisation still holds.
+            update["safety_flagged_ids"] = [last_human.id]
+        return update
 
     return safety_gate
 
