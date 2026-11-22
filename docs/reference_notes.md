@@ -1,8 +1,8 @@
-# Reference notes: draft for Riley's review
+# Reference notes: for Riley's review
 
 These six short notes are how *Hold Me Tight* and *The Seven Principles for Making Marriage Work* get into the app. The companion can search and read them during a conversation, in the same way it reads your saved agreements.
 
-They are written in our own words from general knowledge of the books' ideas. None of the books' text, exercises or questionnaires are used. **Nothing here goes into the app until you've checked it against your copies.**
+They are written in our own words from general knowledge of the books' ideas. None of the books' text, exercises or questionnaires are used. **They are already in the app** (`REFERENCE_DOCS` in `app/memory/memory_store.py`). When you've read the books, check them against your copies; any corrections go into the app as an update.
 
 ## What to check
 
@@ -13,7 +13,7 @@ For each note:
 - [ ] **Our words:** does any sentence sound too close to the book's own wording? If so, mark it and we'll rephrase it.
 - [ ] **Tone:** would this help two people feel understood, without either of them feeling blamed?
 
-Mark changes inline, or just tell Jordan what to change. Notes you approve get added to the app.
+Mark changes inline, or just tell Jordan what to change.
 
 ---
 
@@ -81,7 +81,7 @@ The book is organised around seven conversations that build a more secure bond. 
 6. **Overcome gridlock:** on deep, recurring disagreements, aim for dialogue and understanding the dream behind each position, not a final solution.
 7. **Create shared meaning:** rituals, roles, goals and values you build together.
 
-A central idea is that many conflicts are **perpetual**: they come from lasting differences and won't be "solved". ⚑ The book gives a figure for how many; check the number before we quote one. The goal there is to keep talking about them kindly.
+A central idea is that many conflicts are **perpetual**: they come from lasting differences and won't be "solved". The goal there is to keep talking about them kindly. (The book gives a figure for how many; the app deliberately doesn't quote one.)
 
 **How the companion uses it:** it suggests small, concrete habits (a daily check-in, noticing bids, saying one appreciation), and helps couples tell solvable problems apart from perpetual ones.
 
@@ -116,4 +116,4 @@ Four patterns of communication that Gottman found especially harmful, each with 
 
 ---
 
-*After your review: the approved notes are added to `REFERENCE_DOCS` in `app/memory/memory_store.py` with the keys above, and the README credits you for choosing and reviewing them.*
+*The app's copy is in `REFERENCE_DOCS` in `app/memory/memory_store.py`, under the keys above. Seeding skips keys that already exist, so a correction needs a version bump or a re-seed. The README credits you for choosing the books.*

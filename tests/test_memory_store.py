@@ -74,6 +74,12 @@ def test_search_malformed_query_returns_empty_not_error(couple_a):
     assert ms.search('"unterminated', couple_a, JOINT_SESSION_SCOPES) == []
 
 
+def test_couples_reference_notes_are_searchable(couple_a):
+    ms.seed_reference_documents()
+    results = ms.search("stonewalling", couple_a, JOINT_SESSION_SCOPES)
+    assert any("four horsemen" in r["title"] for r in results)
+
+
 def test_seed_reference_documents_is_idempotent(tmp_db):
     ms.seed_reference_documents()
     count_1 = len(ms.list_documents(None, {ms.SCOPE_REFERENCE}))

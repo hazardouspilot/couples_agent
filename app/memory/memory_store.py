@@ -255,10 +255,123 @@ def search(query: str, couple_id, allowed_scopes, doc_type: str | None = None,
 
 
 # --- reference documents (shared, not personal), seeded once ---
-# Ported from v0.4, in that project's own words. Riley's book notes
-# (EFT / Gottman) are added after she has reviewed them (Sat afternoon).
+# The first six are the couples notes: our own words, from the two books Riley
+# chose (Hold Me Tight; The Seven Principles). Readable copy for her review:
+# docs/reference_notes.md. The last three are ported from v0.4.
 
 REFERENCE_DOCS = [
+    {
+        "doc_key": "reference:eft-attachment-basics",
+        "title": "EFT basics: the relationship as an attachment bond",
+        "content": (
+            "Source: Sue Johnson, Hold Me Tight (2008). Emotionally Focused "
+            "Therapy (EFT) sees a committed relationship as an attachment bond: "
+            "a basic need for closeness and safety, not a weakness. What partners "
+            "need from each other is A.R.E.: Accessible (can I reach you?), "
+            "Responsive (will you respond when I need you?), Engaged (will you "
+            "stay close and involved?). Many arguments about chores, money or "
+            "phones carry a deeper question: 'Are you there for me? Do I matter "
+            "to you?' When it feels unanswered, partners protest (criticise, "
+            "push) or protect themselves (go quiet, withdraw). Use: look under "
+            "the complaint for the need and reflect it to both partners, rather "
+            "than refereeing the content. Draw on these ideas; never claim to "
+            "deliver EFT, which trained therapists do."
+        ),
+    },
+    {
+        "doc_key": "reference:eft-negative-cycles",
+        "title": "EFT: negative cycles (Demon Dialogues)",
+        "content": (
+            "Source: Sue Johnson, Hold Me Tight (2008). Johnson calls the "
+            "recurring negative patterns couples get stuck in Demon Dialogues. "
+            "Find the Bad Guy: mutual blame, each attacking to protect "
+            "themselves. The Protest Polka: one partner pursues (pushes, "
+            "criticises, demands contact) and the other withdraws (goes quiet, "
+            "shuts down); the most common cycle, each move triggering more of "
+            "the other. Freeze and Flee: both withdraw and the relationship goes "
+            "cold. Key idea: the cycle is the enemy, not the partner; both moves "
+            "make sense as attempts to protect the bond. Use: name the cycle as "
+            "something the couple are caught in together ('the more one of you "
+            "pushes, the more the other pulls back'), never as one partner's "
+            "fault. Use the couple's own name for their cycle if they have one."
+        ),
+    },
+    {
+        "doc_key": "reference:eft-seven-conversations",
+        "title": "EFT: the seven conversations",
+        "content": (
+            "Source: Sue Johnson, Hold Me Tight (2008). Seven conversations that "
+            "build a more secure bond, in order: 1. Recognising the Demon "
+            "Dialogues (spotting the cycle together). 2. Finding the raw spots "
+            "(old sensitivities a partner's words can rub against). 3. "
+            "Revisiting a rocky moment (going back over a fight calmly to "
+            "understand it). 4. Hold me tight (reaching for each other and "
+            "sharing needs softly and directly). 5. Forgiving injuries "
+            "(repairing moments where one felt abandoned or betrayed). 6. "
+            "Bonding through sex and touch. 7. Keeping your love alive (caring "
+            "for the bond, building a shared story). Use: a map of where a "
+            "conversation sits and a gentle next step. The app's conflict "
+            "debrief is close in spirit to conversation 3 but is its own design; "
+            "don't run the book's conversations as a programme."
+        ),
+    },
+    {
+        "doc_key": "reference:gottman-seven-principles",
+        "title": "Gottman: the seven principles",
+        "content": (
+            "Source: John Gottman and Nan Silver, The Seven Principles for "
+            "Making Marriage Work (1999). 1. Enhance your love maps: keep "
+            "learning each other's inner world. 2. Nurture fondness and "
+            "admiration: notice and say what you appreciate. 3. Turn toward each "
+            "other: respond to small bids for attention. 4. Let your partner "
+            "influence you: be open to their view, share decisions. 5. Solve "
+            "your solvable problems: gentle start-up, repair attempts, "
+            "compromise. 6. Overcome gridlock: on deep recurring disagreements, "
+            "aim for dialogue and understanding the dream behind each position. "
+            "7. Create shared meaning: rituals, roles, goals and values. Many "
+            "conflicts are perpetual (lasting differences that won't be "
+            "'solved'); the goal there is to keep talking about them kindly. "
+            "Use: suggest small concrete habits (a daily check-in, noticing "
+            "bids, one appreciation) and help tell solvable from perpetual."
+        ),
+    },
+    {
+        "doc_key": "reference:gottman-four-horsemen",
+        "title": "Gottman: the four horsemen and their antidotes",
+        "content": (
+            "Source: John Gottman and Nan Silver, The Seven Principles for "
+            "Making Marriage Work (1999). Four especially harmful patterns, each "
+            "with a commonly taught antidote. Criticism (attacking the person, "
+            "'you always...', not the behaviour) -> gentle start-up: 'I feel... "
+            "about... I need...'. Contempt (mockery, sarcasm, eye-rolling, "
+            "superiority; the most damaging) -> build a culture of appreciation. "
+            "Defensiveness (counter-attacking or playing the victim) -> take "
+            "responsibility, even for a small part. Stonewalling (shutting down, "
+            "often when flooded) -> self-soothing: take a break of about 20 "
+            "minutes, then come back. Use: name a horseman gently and without "
+            "blame, and offer what the antidote might sound like. Never label "
+            "either partner as 'a stonewaller' or 'contemptuous'."
+        ),
+    },
+    {
+        "doc_key": "reference:gottman-repair-and-startup",
+        "title": "Gottman: gentle start-up and repair attempts",
+        "content": (
+            "Source: John Gottman and Nan Silver, The Seven Principles for "
+            "Making Marriage Work (1999). Start-up: how a hard conversation "
+            "begins tends to set how it ends; a harsh start-up (blame, sarcasm) "
+            "usually goes badly, a gentle one (your own feeling and a specific "
+            "need, no attack) gives it a better chance. Repair attempts: "
+            "anything that de-escalates (humour, 'let's start over', 'I see your "
+            "point', a touch); what matters most is whether the other partner "
+            "can accept it, which is easier with a store of goodwill. Flooding: "
+            "when one partner is physically overwhelmed, a productive "
+            "conversation isn't possible; taking a break and agreeing when to "
+            "come back is a skill, not a defeat. Use: suggest what a gentle "
+            "start-up could sound like, point out a repair attempt kindly, or "
+            "suggest an agreed pause."
+        ),
+    },
     {
         "doc_key": "reference:cognitive-distortions",
         "title": "Cognitive distortions cheat sheet",
