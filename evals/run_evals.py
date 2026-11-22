@@ -280,6 +280,8 @@ def main(argv=None) -> Path:
                    help="add the LLM safety classifier to the regex (live, costs money)")
     p.add_argument("--regex", choices=["current", "v04"], default="current",
                    help="v04 = the frozen original patterns (the 'before')")
+    p.add_argument("--min-recall", type=float,
+                   help="exit 1 if any-flag recall is below this (a CI regression gate)")
     p.add_argument("--dataset", default="safety.jsonl",
                    help="safety dataset in evals/datasets/, e.g. safety_holdout.jsonl")
     args = p.parse_args(argv)
@@ -328,6 +330,8 @@ def main(argv=None) -> Path:
         path.with_suffix(".json").write_text(json.dumps(rows, indent=1), encoding="utf-8")
     path.write_text("\n\n".join(sections) + "\n", encoding="utf-8")
     print(f"Report: {path.relative_to(ROOT)}")
+    if args.min_recall is not None and (a["recall"] or 0) < args.min_recall:
+        sys.exit(f"FAIL: any-flag recall {_pct(a['recall'])} is below {args.min_recall:.0%}.")
     return path
 
 
