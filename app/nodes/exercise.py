@@ -19,7 +19,7 @@ The answers are saved as an exercise_record when the last one arrives,
 before the model is called, so a failed reflection loses nothing.
 
 Steps: SPEC "Guided exercise (v1): Conflict debrief", plus the two steps
-from Riley's picks (the pattern, and the four horsemen).
+from the two reference books (the pattern, and the four horsemen).
 """
 
 import json

@@ -4,7 +4,7 @@ Nov 20, 2026 · @Harry DAVIES
 
 ## Purpose and scope
 
-Build a couples-support agent in LangGraph that reuses the proven architecture of `counselling_agent` v0.4 (Python, Anthropic SDK, SQLite), with a small eval suite from day one. It has two jobs: give Jordan and Riley a relationship-skills companion they can use together, and give Jordan honest, hands-on LangGraph/LangChain experience for AI engineering interviews.
+Build a couples-support agent in LangGraph that reuses the proven architecture of `counselling_agent` v0.4 (Python, Anthropic SDK, SQLite), with a small eval suite from day one. It has two jobs: give me and my partner a relationship-skills companion we can use together, and give me honest, hands-on LangGraph/LangChain experience for AI engineering roles.
 
 **In scope (v1, this weekend):**
 
@@ -198,16 +198,16 @@ Add couples-specific regex patterns with recall bias, for example "checks my pho
 
 The exercise is generic and written in our own words, not taken from a branded programme. Questionnaires follow v0.4's licensing rule: the Dyadic Adjustment Scale is commercially licensed, so it is log-only. Check any other instrument's licence before reproducing its items.
 
-## Reference material: Riley's picks
+## Reference material: my partner's picks
 
-Riley chose two books as the app's guiding frameworks: *Hold Me Tight: Seven Conversations for a Lifetime of Love* (Dr Sue Johnson, 2008), the public-facing book on Emotionally Focused Therapy (EFT), and *The Seven Principles for Making Marriage Work* (John Gottman and Nan Silver, 1999). They enter the app as **reference documents written in our own words**, using the same `scope = 'reference'` mechanism as v0.4's CBT notes.
+My partner chose two books as the app's guiding frameworks: *Hold Me Tight: Seven Conversations for a Lifetime of Love* (Dr Sue Johnson, 2008), the public-facing book on Emotionally Focused Therapy (EFT), and *The Seven Principles for Making Marriage Work* (John Gottman and Nan Silver, 1999). They enter the app as **reference documents written in our own words**, using the same `scope = 'reference'` mechanism as v0.4's CBT notes.
 
 **Rules (same discipline as the DAS/YSQ licensing note):**
 
 - Concepts, not text. Claude Code does not need, and must not use, the books' text. It seeds short notes that summarise ideas in plain language, with the book cited in each note's title.
 - No reproduced exercises, quizzes or questionnaires from either book. Where the app has an exercise, it is our own design, informed by the ideas.
 - The agent says it draws on ideas from these books. It never claims to deliver EFT or Gottman Method therapy, which are clinician-delivered.
-- Riley reviews the notes against her copies before they are seeded. That is her direct contribution to the build, and the README credits her.
+- My partner reviews the notes against the books. That is a direct contribution to the build, and the README credits it.
 
 | `doc_key` | What the note covers (own words) | How the agent uses it |
 | --- | --- | --- |
@@ -241,7 +241,7 @@ The weekend must ship evals 1 and 2. Evals 3 and 4 are stretch goals. Every eval
 - Graph tests use a fake chat model so they run without an API key, as v0.4's tests mock the client.
 - The judge model is pinned and its prompt is versioned in the repo.
 - Hand-check five judge scores against your own reading before trusting the numbers.
-- Never put real session content from you and Riley into eval datasets. Write synthetic cases.
+- Never put real session content into eval datasets. Write synthetic cases.
 - If `LANGSMITH_API_KEY` is set, also log runs as a LangSmith experiment. Without it, everything still works locally.
 
 ## Observability and monitoring
@@ -278,8 +278,8 @@ The goal is to finish Sunday night with a graph that runs end to end, two evals 
 - [done] **Fri evening (1 h):** Rotate the API key. Create `~/Repos/couples_agent`. Export this doc to Markdown as `SPEC.md`. Add `CLAUDE.md` (below). Run git init and push to a private GitHub repo.
 - [done] **Sat morning:** Claude Code ports `memory/` from v0.4 (store, db, timeutil, auth, crisis resources) with `couple_id`/`doc_scope`, and its tests pass.
 - [done] **Sat midday:** `state.py`, `graph.py` with `load_context → safety_gate → router → converse ⇄ tools → output_check`, plus `SqliteSaver`. A CLI chat works. Turn on LangSmith tracing and read one full trace node by node.
-- [done] **Sat afternoon:** `crisis` node with the IPV protocol; the conflict-debrief exercise subgraph with `interrupt()`; the curator subgraph; thread deletion after curation; seed the reference notes once Riley has reviewed them.
-  - *As built:* the exercise is a per-turn state machine, not `interrupt()` (a resumed graph would skip the safety gate at START); the curator is one structured-output call with documents fetched by code. Reference notes seeded straight away (Riley hasn't read the books yet); her review of `docs/reference_notes.md` comes later.
+- [done] **Sat afternoon:** `crisis` node with the IPV protocol; the conflict-debrief exercise subgraph with `interrupt()`; the curator subgraph; thread deletion after curation; seed the reference notes once they have been reviewed.
+  - *As built:* the exercise is a per-turn state machine, not `interrupt()` (a resumed graph would skip the safety gate at START); the curator is one structured-output call with documents fetched by code. Reference notes seeded straight away; the review of `docs/reference_notes.md` against the books comes later.
 - [done] **Sun morning:** Write `safety.jsonl` and `rubric_cases.jsonl` yourself (writing them is the learning). Build `run_evals.py`. Get first numbers.
 - [done] **Sun afternoon:**
   - *As built:* did BOTH the LLM classifier and the regex revision, measured on a 40-case held-out set (regex v2: 20% to 20% recall, i.e. overfitted to the dev set; + classifier: 100%). Alerts are Prometheus rules shown in Grafana, not Grafana-managed rules (plain YAML, reviewable). README before/after still to write.
@@ -312,7 +312,7 @@ Rules:
 
 **Open questions (defaults are assumed in this spec until answered):**
 
-- Has Riley agreed to use it, and does she want joint sessions only? Default: joint only.
+- Joint sessions only, or individual sessions too? Default: joint only.
 - One shared device and login, or each partner's own login on a shared couple record? Default: one couple login.
 - Should private individual sessions (v2) ever exist? It changes the privacy model, so decide before real use.
 - Who reviews the IPV protocol and crisis wording before anyone else uses it?

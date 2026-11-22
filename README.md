@@ -99,6 +99,6 @@ Reports are in `evals/reports/`. CI runs the offline safety eval on every push a
 
 ## Credits
 
-Riley chose the two books that guide the companion: *Hold Me Tight* (Sue Johnson) and *The Seven Principles for Making Marriage Work* (John Gottman and Nan Silver). Six short reference notes, written in our own words, are in `docs/reference_notes.md`. Riley will check them once she has read the books.
+My partner chose the two books that guide the companion: *Hold Me Tight* (Sue Johnson) and *The Seven Principles for Making Marriage Work* (John Gottman and Nan Silver). Six short reference notes, written in our own words, are in `docs/reference_notes.md`, to be checked against the books as they're read.
 
 `SPEC.md` is the design spec and build plan; `CLAUDE.md` holds the working rules.

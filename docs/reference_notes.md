@@ -1,4 +1,4 @@
-# Reference notes: for Riley's review
+# Reference notes: for review
 
 These six short notes are how *Hold Me Tight* and *The Seven Principles for Making Marriage Work* get into the app. The companion can search and read them during a conversation, in the same way it reads your saved agreements.
 
@@ -13,7 +13,7 @@ For each note:
 - [ ] **Our words:** does any sentence sound too close to the book's own wording? If so, mark it and we'll rephrase it.
 - [ ] **Tone:** would this help two people feel understood, without either of them feeling blamed?
 
-Mark changes inline, or just tell Jordan what to change.
+Mark changes inline, or open an issue.
 
 ---
 
@@ -116,4 +116,4 @@ Four patterns of communication that Gottman found especially harmful, each with 
 
 ---
 
-*The app's copy is in `REFERENCE_DOCS` in `app/memory/memory_store.py`, under the keys above. Seeding skips keys that already exist, so a correction needs a version bump or a re-seed. The README credits you for choosing the books.*
+*The app's copy is in `REFERENCE_DOCS` in `app/memory/memory_store.py`, under the keys above. Seeding skips keys that already exist, so a correction needs a version bump or a re-seed. The README credits who chose the books.*

@@ -255,7 +255,7 @@ def search(query: str, couple_id, allowed_scopes, doc_type: str | None = None,
 
 
 # --- reference documents (shared, not personal), seeded once ---
-# The first six are the couples notes: our own words, from the two books Riley
+# The first six are the couples notes: our own words, from the two books my partner
 # chose (Hold Me Tight; The Seven Principles). Readable copy for her review:
 # docs/reference_notes.md. The last three are ported from v0.4.
 
