@@ -2,7 +2,7 @@
 
 These six short notes are how *Hold Me Tight* and *The Seven Principles for Making Marriage Work* get into the app. The companion can search and read them during a conversation, in the same way it reads your saved agreements.
 
-They are written in our own words from general knowledge of the books' ideas. None of the books' text, exercises or questionnaires are used. **They are already in the app** (`REFERENCE_DOCS` in `app/memory/memory_store.py`). When you've read the books, check them against your copies; any corrections go into the app as an update.
+They are written in our own words from general knowledge of the books' ideas. None of the books' text, exercises or questionnaires are used. **They are already in the app** (`REFERENCE_DOCS` in `app/memory/memory_store.py`). If you read any of the books, check this against what you learn; any corrections go into the app as an update.
 
 ## What to check
 
