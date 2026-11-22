@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 15s      # how often Prometheus pulls /metrics
+  evaluation_interval: 15s  # how often alert rules are checked
+
+rule_files:
+  - /etc/prometheus/alert_rules.yml
+
+scrape_configs:
+  - job_name: couples-agent
+    static_configs:
+      # The CLI's /metrics, whether it runs natively or via
+      # `docker compose run --service-ports app`: both put it on host port 8000.
+      - targets: ["host.docker.internal:8000"]

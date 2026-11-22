@@ -1,0 +1,51 @@
+# Observability stack: Prometheus scrapes the app's /metrics; Grafana shows
+# a provisioned dashboard and Prometheus's alert rules.
+#
+#   docker compose up -d                          # Prometheus :9090, Grafana :3000
+#   docker compose run --rm --service-ports app   # the CLI, in a container
+#
+# Or run the CLI natively (python cli.py). Either way the app's port 8000 is
+# on the host, and Prometheus scrapes host.docker.internal:8000. (Scraping
+# the service name `app` doesn't work: `compose run` containers get a random
+# DNS name, not the service name.)
+
+services:
+  app:
+    build: .
+    env_file: .env
+    environment:  # override .env's local paths with the container's volume
+      COUPLES_AGENT_DB: /data/couples_agent.db
+      COUPLES_AGENT_CHECKPOINTS: /data/checkpoints.db
+    volumes:
+      - app-data:/data
+    ports:
+      - "8000:8000"
+    stdin_open: true  # the CLI reads from the keyboard
+    tty: true
+    profiles: ["app"]  # not started by `up`: it's interactive, use `run`
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    volumes:
+      - ./ops/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./ops/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+    ports:
+      - "9090:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"  # local only: view without logging in
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./ops/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./ops/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  app-data:

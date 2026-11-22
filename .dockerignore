@@ -1,0 +1,15 @@
+# Keep secrets, personal data and local clutter out of the image (and out
+# of the build context sent to Docker).
+.env
+.env.*
+!.env.example
+*.db
+*.db-*
+.git
+.venv
+.claude
+__pycache__
+*.egg-info
+.pytest_cache
+.ruff_cache
+evals/reports

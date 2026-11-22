@@ -22,6 +22,7 @@ from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
 
 from app.memory import retrieval
+from app.observability import RETRIEVAL_EMPTY
 
 # Spelled out (not built from memory_store.ALL_TYPES) because a Literal
 # must be static for the schema. tests/test_tools.py checks they match.
@@ -47,7 +48,10 @@ def search_memory(
         query: Keywords to search for, e.g. a topic, a person, a feeling.
         doc_type: Optional: restrict to one document type.
     """
-    return retrieval.search_memory(couple_id, query, doc_type)
+    result = retrieval.search_memory(couple_id, query, doc_type)
+    if not result.get("results"):
+        RETRIEVAL_EMPTY.inc()  # an early signal for the FTS5-vs-embeddings question
+    return result
 
 
 @tool

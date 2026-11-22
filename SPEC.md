@@ -280,8 +280,10 @@ The goal is to finish Sunday night with a graph that runs end to end, two evals 
 - [done] **Sat midday:** `state.py`, `graph.py` with `load_context → safety_gate → router → converse ⇄ tools → output_check`, plus `SqliteSaver`. A CLI chat works. Turn on LangSmith tracing and read one full trace node by node.
 - [done] **Sat afternoon:** `crisis` node with the IPV protocol; the conflict-debrief exercise subgraph with `interrupt()`; the curator subgraph; thread deletion after curation; seed the reference notes once Riley has reviewed them.
   - *As built:* the exercise is a per-turn state machine, not `interrupt()` (a resumed graph would skip the safety gate at START); the curator is one structured-output call with documents fetched by code. Reference notes seeded straight away (Riley hasn't read the books yet); her review of `docs/reference_notes.md` comes later.
-- [ ] **Sun morning:** Write `safety.jsonl` and `rubric_cases.jsonl` yourself (writing them is the learning). Build `run_evals.py`. Get first numbers.
-- [ ] **Sun afternoon:** Change one thing (add couples regex patterns, or the LLM classifier) and re-run. Record the before/after in the README. Then expose metrics from the CLI (prometheus\_client start\_http\_server), add a Dockerfile for the app, and bring up Prometheus and Grafana with docker compose: one dashboard, two alert rules. Add the CI workflow.
+- [done] **Sun morning:** Write `safety.jsonl` and `rubric_cases.jsonl` yourself (writing them is the learning). Build `run_evals.py`. Get first numbers.
+- [done] **Sun afternoon:**
+  - *As built:* did BOTH the LLM classifier and the regex revision, measured on a 40-case held-out set (regex v2: 20% to 20% recall, i.e. overfitted to the dev set; + classifier: 100%). Alerts are Prometheus rules shown in Grafana, not Grafana-managed rules (plain YAML, reviewable). README before/after still to write.
+- **Sun afternoon (original plan):** Change one thing (add couples regex patterns, or the LLM classifier) and re-run. Record the before/after in the README. Then expose metrics from the CLI (prometheus\_client start\_http\_server), add a Dockerfile for the app, and bring up Prometheus and Grafana with docker compose: one dashboard, two alert rules. Add the CI workflow.
 - [ ] **Sun evening:** Walk through the graph out loud. Explain each node without notes.
 
 **If time runs short, cut from the bottom of this list:** the graph with LangSmith tracing, then the safety eval, then Docker + metrics, then the rubric eval, then the Grafana alerts, then the CI workflow.

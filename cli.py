@@ -28,6 +28,7 @@ from app.memory import auth, db, memory_store, timeutil
 from app.model import OfflineChatModel, get_model, get_safety_classifier
 from app.nodes.context import compute_temporal_context
 from app.nodes.exercise import EXERCISE_KEY, expected_speaker
+from app.observability import TURNS, MetricsCallback, start_metrics_server, turn_route
 from app.prompts import speaker_message
 from app.resources.crisis_resources import format_crisis_message
 from app.state import new_session_state
@@ -64,6 +65,8 @@ Commands:
 
 Anything else is a message from the current speaker.
 """
+
+METRICS_CALLBACK = MetricsCallback()
 
 # Only the couple's own documents; shared reference notes aren't "about" them.
 _MEMORY_SCOPES = {memory_store.SCOPE_COUPLE}
@@ -197,14 +200,17 @@ def run_turn(graph, turn_input: dict, config: dict, debug: bool = False):
     The reply itself is printed only after output_check has run: streaming
     tokens straight from the model would show text the backstop might then
     replace."""
+    nodes_run = set()
     for chunk in graph.stream(turn_input, config, stream_mode="updates"):
         for node, update in chunk.items():
+            nodes_run.add(node)
             if debug:
                 print(f"  [node: {node}]")
             if node == "converse" and update:
                 for call in update["messages"][-1].tool_calls:
                     args = ", ".join(f"{k}={v!r}" for k, v in call["args"].items())
                     print(f"  [checking memory: {call['name']}({args})]")
+    TURNS.labels(turn_route(nodes_run)).inc()
 
     # Code-written text (crisis resources) first, then the model's reply,
     # unless the IPV protocol ended the session (no model reply that turn).
@@ -220,7 +226,9 @@ def run_session(couple_id: int, username: str, model, checkpointer, classifier=N
     """Returns 'quit' or 'logout'."""
     names = db.get_partner_names(couple_id)
     session_id = db.start_session(couple_id)
-    config = thread_config(session_id)
+    # callbacks: LangChain calls MetricsCallback's hooks for every node,
+    # model call and tool call in the run (see app/observability.py).
+    config = {**thread_config(session_id), "callbacks": [METRICS_CALLBACK]}
     graph = build_graph(model, checkpointer, classifier)
     _, _, gap = compute_temporal_context(couple_id, session_id)
 
@@ -366,6 +374,9 @@ def main():
     model = get_model()
     classifier = get_safety_classifier()
     print(BANNER)
+    port = start_metrics_server()
+    if port:
+        print(f"[Metrics: http://localhost:{port}/metrics]")
 
     while True:
         login = prompt_login()

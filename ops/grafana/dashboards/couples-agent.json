@@ -1,0 +1,59 @@
+{
+  "uid": "couples-agent",
+  "title": "Couples agent",
+  "schemaVersion": 39,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "type": "timeseries", "title": "Turns by route (per 5 min)",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (route) (increase(agent_turns_total[5m]))", "legendFormat": "{{route}}" }]
+    },
+    {
+      "type": "timeseries", "title": "Node latency p95 (seconds)",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [{ "refId": "A", "expr": "histogram_quantile(0.95, sum by (le, node) (rate(agent_node_latency_seconds_bucket[5m])))", "legendFormat": "{{node}}" }]
+    },
+    {
+      "type": "timeseries", "title": "Tokens (per 5 min)",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (direction, model) (increase(llm_tokens_total[5m]))", "legendFormat": "{{direction}} {{model}}" }]
+    },
+    {
+      "type": "stat", "title": "Estimated spend, last 24h (AUD)",
+      "gridPos": { "x": 12, "y": 8, "w": 6, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "currencyAUD", "decimals": 2,
+        "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 5 }] } }, "overrides": [] },
+      "targets": [{ "refId": "A", "expr": "sum(increase(llm_cost_aud_total[24h]))" }]
+    },
+    {
+      "type": "stat", "title": "Model API error rate (10 min)",
+      "gridPos": { "x": 18, "y": 8, "w": 6, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 1,
+        "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 0.05 }] } }, "overrides": [] },
+      "targets": [{ "refId": "A", "expr": "sum(rate(llm_requests_total{outcome=\"error\"}[10m])) / sum(rate(llm_requests_total[10m]))" }]
+    },
+    {
+      "type": "timeseries", "title": "Safety flags by layer (per hour)",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (layer, category) (increase(safety_triggers_total[1h]))", "legendFormat": "{{layer}}: {{category}}" }]
+    },
+    {
+      "type": "timeseries", "title": "Memory tool calls and empty searches (per 5 min)",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "sum by (tool) (increase(tool_calls_total[5m]))", "legendFormat": "{{tool}}" },
+        { "refId": "B", "expr": "sum(increase(retrieval_empty_total[5m]))", "legendFormat": "searches with no results" }
+      ]
+    }
+  ]
+}

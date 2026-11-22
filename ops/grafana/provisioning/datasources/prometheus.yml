@@ -1,0 +1,10 @@
+# Provisioning: Grafana reads these files at startup, so the data source
+# and dashboard exist without clicking through the UI ("config as code").
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true

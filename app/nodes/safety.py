@@ -35,6 +35,7 @@ from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage
 
 from app.memory import db
 from app.nodes.crisis import CRISIS_REPLY_FALLBACK
+from app.observability import SAFETY_TRIGGERS
 from app.resources.crisis_resources import format_crisis_message, format_joint_session_message
 
 # Highest priority first: decides which resource message is shown when
@@ -46,6 +47,9 @@ CATEGORY_PRIORITY = ("self_harm", "harm_to_others", "abuse")
 class SafetyResult:
     triggered: bool
     categories: list[str] = field(default_factory=list)
+    # Which detector raised the flag ("regex" | "classifier"), for the
+    # safety_triggers_total metric. Not stored in state.
+    layer: str | None = None
     # The matched phrases are pieces of the user's message. Useful for
     # debugging and evals, but never stored: see as_state().
     matched: list[str] = field(default_factory=list)
@@ -154,7 +158,8 @@ def check_message(text: str | None, compiled=None) -> SafetyResult:
             if category not in categories:  # de-dupe, keep first-seen order
                 categories.append(category)
 
-    return SafetyResult(triggered=bool(categories), categories=categories, matched=matched)
+    return SafetyResult(triggered=bool(categories), categories=categories, matched=matched,
+                        layer="regex" if categories else None)
 
 
 # ======================================================================
@@ -169,7 +174,8 @@ def check_with_classifier(text: str | None, classifier=None, compiled=None) -> S
     if result.triggered or classifier is None or not text:
         return result
     categories = classifier(text)
-    return SafetyResult(triggered=bool(categories), categories=categories)
+    return SafetyResult(triggered=bool(categories), categories=categories,
+                        layer="classifier" if categories else None)
 
 
 def make_safety_gate(classifier=None):
@@ -186,6 +192,7 @@ def make_safety_gate(classifier=None):
         if result.triggered:
             db.log_safety_event(state["couple_id"], state["session_id"],
                                 result.primary_category)
+            SAFETY_TRIGGERS.labels(result.primary_category, result.layer).inc()
         return {"safety": result.as_state()}
 
     return safety_gate
@@ -276,6 +283,7 @@ def output_check(state) -> dict:
     if result.triggered:
         category = result.primary_category
         db.log_safety_event(state["couple_id"], state["session_id"], category)
+        SAFETY_TRIGGERS.labels(category, "output").inc()
         resources = (format_joint_session_message()
                      if category == "abuse" and state.get("joint_mode", True)
                      else format_crisis_message(category))

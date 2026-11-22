@@ -1,0 +1,26 @@
+# The spec's two alerts, as Prometheus alerting rules. Grafana lists them
+# under Alerting (data-source-managed rules). Plain YAML in the repo, so
+# they're reviewed like code and checkable with `promtool check rules`.
+#
+# Counters reset when the CLI restarts; rate() and increase() handle resets.
+groups:
+  - name: couples-agent
+    rules:
+      - alert: HighModelErrorRate
+        # Share of model API calls that failed over 10 minutes.
+        expr: >
+          sum(rate(llm_requests_total{outcome="error"}[10m]))
+          / sum(rate(llm_requests_total[10m])) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "More than 5% of model API calls failed over the last 10 minutes"
+
+      - alert: DailyCostOverBudget
+        # Estimated spend (AUD) over the last 24 hours, from token counts.
+        expr: sum(increase(llm_cost_aud_total[24h])) > 5
+        labels:
+          severity: warning
+        annotations:
+          summary: "Estimated model spend is over A$5 in the last 24 hours"
